@@ -56,6 +56,8 @@ def take_turn():
     beginning_of_turn_phase(is_first)
     if is_first==True:
         lay_tiles()
+    else:
+        screen_update_message("Other player laying tiles.")
     if is_first==True:
         stock_resources()
     if is_first==True:
@@ -64,7 +66,12 @@ def take_turn():
     else:
         receive_game_state()
         send_game_state()
-    screen_update()
+    if is_first==True:
+        screen_update()
+    else:
+        for event in pygame.event.get():
+            pass
+        screen_update_message("Other player placing worker.")
     worker_placement(is_first)
     worker_pickup(is_first)
     if game_state.players[0].is_first_player==True:
@@ -374,8 +381,10 @@ def worker_placement(is_first):
     while workers_remain()==True:
         if is_first==True:
             place_worker()
+            screen_update_message("Other player placing worker.")
             receive_game_state()
         else:
+            screen_update_message("Other player placing worker.")
             receive_game_state()
             place_worker()
 def workers_remain():
@@ -387,7 +396,7 @@ def workers_remain():
 def place_worker():
     if game_state.players._values[player_identity].workers_remaining>0:
         game_state.players[player_identity].workers_remaining-=1
-        screen_update()
+        screen_update_message("Placing worker {0}/{1}".format(game_state.players[player_identity].total_workers-game_state.players[player_identity].workers_remaining,game_state.players[player_identity].total_workers))
         while place_worker_input()==False:
             pass
     send_game_state()
@@ -400,8 +409,8 @@ def place_worker_input():
                 screen_update_mouse_worker(event.pos)
             if event.type == pygame.MOUSEBUTTONUP:
                 column,row = event.pos
-                column=int(round(float(column)/30.0))
-                row=int(round(float(row)/30.0))
+                column=column/30
+                row=row/30
                 position_selected=True
     #check to see if selection is valid
     tile_selected = find_tile_by_position((column*16)+row)
@@ -549,6 +558,13 @@ def construct_worker(player_number,is_first):
     player=game_state.players[player_number]
     if (player.electricity+player.water+player.information+player.metal+player.rare_metal)<20:
         return
+    if player.total_workers>=5:
+        return
+    if player_number!=player_identity:
+        screen_update_message("Other player constructing a worker.")
+    if player_number==player_identity:
+        if construct_worker_q()==False:
+            return
     if player_number==player_identity:
         spend_freely(20,"Spend 20 to construct a worker.")
         player.total_workers+=1
@@ -562,13 +578,24 @@ def construct_worker(player_number,is_first):
         else:
             receive_game_state()
             send_game_state()        
+def construct_worker_q():
+    while True:
+        for event in pygame.event.get():
+            if event.type==pygame.QUIT: sys.exit()
+            if event.type==pygame.KEYDOWN:
+                keystate = pygame.key.get_pressed()
+                if keystate[K_y]==True:
+                    return True
+                if keystate[K_n]==True:
+                    return False
+        screen_update_message("Construct a worker? (Y/N)")
 def spend_freely(number,message):
     screen_update_message(message)
     player = game_state.players[player_identity]
     spent = 0
     x = 0
     while spent<number:
-        x = select_resource(message)
+        x = select_resource(message+" Spent: {0}/{1}".format(spent,number))
         while x==0:
             x = select_resource(message)
         if x==1:
@@ -593,6 +620,7 @@ def spend_freely(number,message):
                 spent+=1
         screen_update_message(message)
 def select_resource(message):
+    screen_update_message(message)
     resource_selected=False
     while resource_selected==False:
         for event in pygame.event.get():
@@ -614,10 +642,38 @@ def select_resource(message):
                     elif column>620 and column<640 and row>580 and row<640:
                         return 5
     return 0
+def select_resource_q(message):
+    resource_selected=False
+    while resource_selected==False:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT: sys.exit()
+            if event.type == pygame.MOUSEMOTION:
+                screen_update_message(message)
+            if event.type == pygame.MOUSEBUTTONUP:
+                column,row = event.pos
+                if column>540 and column<640 and row>580 and row<640:
+                    resource_selected=True
+                    if column>540 and column<560 and row>580 and row<640:
+                        return 1
+                    elif column>560 and column<580 and row>580 and row<640:
+                        return 2
+                    elif column>580 and column<600 and row>580 and row<640:
+                        return 3
+                    elif column>600 and column<620 and row>580 and row<640:
+                        return 4
+                    elif column>620 and column<640 and row>580 and row<640:
+                        return 5
+            if event.type == pygame.KEYDOWN:
+                keystate = pygame.key.get_pressed()
+                if keystate[K_q]==True:
+                    return 0
+    return 0
 def bring_city_online(player_number,is_first):
     player=game_state.players[player_number]
     if (player.electricity+player.water+player.information+player.metal+player.rare_metal)<5:
         return
+    if player_number!=player_identity:
+        screen_update_message("Other player delivering goods to a city.")
     if player_number==player_identity:
         while (player.electricity+player.water+player.information+player.metal+player.rare_metal)>=5 and bring_city_online_q()==True:
             spend_freely(5,"Spend 5 to bring a city online.")
@@ -643,8 +699,8 @@ def bring_city_online_q():
                     return True
                 if keystate[K_n]==True:
                     return False
-                if keystate[K_q]==True:
-                    endgame()
+                # if keystate[K_q]==True:
+                    # endgame()
         screen_update_message("Bring a city tile online? (Y/N)")
 def bring_city_online_input(player_number,message,is_first):
     position_selected = False
@@ -723,6 +779,8 @@ def build_upgrade(player_number,is_first):
     player = game_state.players[player_number]
     if (player.electricity+player.water+player.information+player.metal+player.rare_metal==0):
         return
+    if player_number!=player_identity:
+        screen_update_message("Other player building an upgrade.")
     if player_number==player_identity:
         if build_upgrade_q()==True:
             while build_upgrade_input(player_number,"Select an upgrade to build")==False:
@@ -773,9 +831,52 @@ def build_upgrade_input(player_number,message):
     screen_update()
     if row==13 and game_state.players[player_number].vp==0:
         return False
+    if upgrade_costs_not_met(player_number,row):
+        return False
     while build_upgrade_input2(player_number,"Select a spot to build",row)==False:
         pass
     return True
+def upgrade_costs_not_met(player_number,upgrade_number):
+    player = game_state.players[player_number]
+    upgrade = upgrade_types[upgrade_number]
+    cost_increase = 0
+    if game_state.upgrades_available[25]==False:
+        if upgrade_owner_number(25)!=player_number:
+            if game_state.upgrades_available[16]==True or (game_state.upgrades_available[16]==False and upgrade_owner_number(16)!=player_number):
+                cost_increase = get_highest_costed_resource(row)
+    if cost_increase==1:
+        upgrade.electricity+=1
+    elif cost_increase==2:
+        upgrade.water+=1
+    elif cost_increase==3:
+        upgrade.information+=1
+    elif cost_increase==4:
+        upgrade.metal+=1
+    elif cost_increase==5:
+        upgrade.rare_metal+=1
+    returnValue=False
+    if player.electricity<upgrade.electricity:
+        returnValue=True
+    if player.water<upgrade.water:
+        returnValue=True
+    if player.information<upgrade.information:
+        returnValue=True
+    if player.metal<upgrade.metal:
+        returnValue=True
+    if player.rare_metal<upgrade.rare_metal:
+        returnValue=True
+    if cost_increase==1:
+        upgrade.electricity-=1
+    elif cost_increase==2:
+        upgrade.water-=1
+    elif cost_increase==3:
+        upgrade.information-=1
+    elif cost_increase==4:
+        upgrade.metal-=1
+    elif cost_increase==5:
+        upgrade.rare_metal-=1
+        return returnValue
+        
 def build_upgrade_input2(player_number,message,upgrade):
     possible = False
     for i in game_state.table_tiles:
@@ -835,27 +936,29 @@ def pay_upgrade_cost(row,player_number):
         upgrade.metal+=1
     elif cost_increase==5:
         upgrade.rare_metal+=1
+    returnValue = True
     if player.electricity<upgrade.electricity:
+        returnValue = False
+    if player.water<upgrade.water:
+        returnValue = False
+    if player.information<upgrade.information:
+        returnValue = False
+    if player.metal<upgrade.metal:
+        returnValue = False
+    if player.rare_metal<upgrade.rare_metal:
+        returnValue = False
+    if returnValue == False:
         if cost_increase==1:
             upgrade.electricity-=1
-        return False
-    if player.water<upgrade.water:
-        if cost_increase==2:
+        elif cost_increase==2:
             upgrade.water-=1
-        return False
-    if player.information<upgrade.information:
-        if cost_increase==3:
+        elif cost_increase==3:
             upgrade.information-=1
-        return False
-    if player.metal<upgrade.metal:
-        if cost_increase==4:
+        elif cost_increase==4:
             upgrade.metal-=1
-        return False
-    if player.rare_metal<upgrade.rare_metal:
-        if cost_increase==5:
+        elif cost_increase==5:
             upgrade.rare_metal-=1
         return False
-
     if game_state.upgrades_available[10]==False:
         if upgrade_owner_number(10)==player_number:
             if upgrade.electricity>1 or upgrade.water>1 or upgrade.information>1 or upgrade.metal>1 or upgrade.rare_metal>1:
@@ -878,6 +981,16 @@ def pay_upgrade_cost(row,player_number):
     player.information-=upgrade.information
     player.metal-=upgrade.metal
     player.rare_metal-=upgrade.rare_metal
+    if cost_increase==1:
+        upgrade.electricity-=1
+    elif cost_increase==2:
+        upgrade.water-=1
+    elif cost_increase==3:
+        upgrade.information-=1
+    elif cost_increase==4:
+        upgrade.metal-=1
+    elif cost_increase==5:
+        upgrade.rare_metal-=1
     return True
 def on_buy(upgrade,player_number): #TERRAFORMING SERVER AND GEOLOCATIONAL SATELLITES AND PUBLIC AUCTION INCOMPLETE
     player = game_state.players[player_number]
@@ -886,7 +999,7 @@ def on_buy(upgrade,player_number): #TERRAFORMING SERVER AND GEOLOCATIONAL SATELL
         #kill myself
     elif upgrade==3:
         player.vp+=1
-        player.vp+=count_adjacent_non_datahosting_upgrades(upgrade)
+        player.vp+=(count_adjacent_non_datahosting_upgrades(upgrade)*2)
     elif upgrade==4:
         pass
         #kill myself
@@ -915,6 +1028,7 @@ def on_buy(upgrade,player_number): #TERRAFORMING SERVER AND GEOLOCATIONAL SATELL
         player.vp+=6
     elif upgrade==22:
         gain_any_one_good(player_number,7)
+        add_counters_to_upgrade(upgrade,1)
     elif upgrade==23:
         player.vp+=8
     elif upgrade==26:
@@ -923,13 +1037,15 @@ def on_buy(upgrade,player_number): #TERRAFORMING SERVER AND GEOLOCATIONAL SATELL
         else:
             opponent_number=0
         opponent=game_state.players[opponent_number]
-        if opponent.vp<=player.vp:
-            opponent.vp-=5
-            if opponent.vp<0:
+        if opponent.vp>=player.vp:
+            if opponent.vp>=5:
+                opponent.vp-=5
+            else:
                 opponent.vp=0
         else:
-            player.vp-=5
-            if player.vp<0:
+            if player.vp>=5:
+                player.vp-=5
+            else:
                 player.vp=0
     elif upgrade==26:
         #kill myself
@@ -1006,7 +1122,7 @@ def trigger_upgrade_on_turn_begins(upgrade,is_first):
                     game_state.players[1].electricity+=3
     elif upgrade==30:
         if player_identity==upgrade_owner_number(upgrade):
-            x = select_resource()
+            x = select_resource("Select a resource for your opponent to lose.")
             while x==0:
                 x = select_resource()
             opponent_number = player_identity+1
@@ -1092,8 +1208,9 @@ def gain_any_combination_of_goods(player_number,amount):
 def trade_in_resources_for_vp(player_number,ratio):
     player = game_state.players[player_number]
     amount=0
+    x=-1
     while x!=0:
-        x = select_resource("Select resources to trade for VP (click elsewhere to quit)")
+        x = select_resource_q("Select resources to trade for VP (press q to quit)")
         if x!=0:
             amount+=1
         if x==1:
@@ -1153,8 +1270,8 @@ def all_upgrades_in_city_are_bureaucracy(upgrade):
         if is_non_bureaucracy_upgrade(i)==True:
             return False
     return True
-def is_non_bureaucray_upgrade(tile):
-    if tile.upgrade_build!=None and tile.upgrade_built>=0 and tile.upgrade_built<24:
+def is_non_bureaucracy_upgrade(tile):
+    if tile.upgrade_built!=None and tile.upgrade_built>=0 and tile.upgrade_built<24:
         return True
     else:
         return False
@@ -1182,8 +1299,13 @@ def count_cities():
     kill_list = []
     for i in game_state.table_tiles:
         cities.append(get_city_region(i))
-    for i in range(len(cities))-1:
-        for j in range(1,len(cities)):
+    for i in cities:
+        if i==None or x_in_y(None,i) or region_closed(i)!=True:
+            kill_list.append(i)
+    for i in range(len(cities)-1):
+        if len(cities[i])==1:
+            kill_list.append(cities[i])
+        for j in range(i+1,len(cities)):
             difference_found=False
             for k in cities[i]:
                 if x_in_y(k,cities[j])!=True:
@@ -1191,7 +1313,8 @@ def count_cities():
             if difference_found==False:
                 kill_list.append(cities[j])
     for i in kill_list:
-        cities.remove(i)
+        if x_in_y(i,cities):
+            cities.remove(i)
     return len(cities)
 def count_finance_upgrades_bought():
     count=0
@@ -1227,6 +1350,7 @@ def count_upgrade_categories_bought():
         count+=1
     if bureaucracy_bought==True:
         count+=1
+    return count
 def get_highest_costed_resource(upgrade):
     if upgrade<=7:
         return 2
@@ -1272,6 +1396,8 @@ def endgame():
         upgrade_owner(24).vp+=(total_resources(upgrade_owner(24))/4)
     if game_state.upgrades_available[29]==False:
         upgrade_owner(29).vp+=(2*count_upgrade_categories_bought())
+    if game_state.upgrades_available[31]==False:
+        upgrade_owner(31).vp+=(3*(count_counters_on_upgrade(31)/2))
     if player.vp>opponent.vp:
         print("YOU HAVE WON! {0}-{1}".format(player.vp,opponent.vp))
     elif player.vp==opponent.vp:
@@ -1363,19 +1489,19 @@ def initialize_game_state():
     a = game_state.table_tiles.add()
     a.tile_type = 1
     a.tile_position = ((9*16)+9)
-    a.tile_orientation = 1
-    a = game_state.table_tiles.add()
-    a.tile_type = 1
-    a.tile_position = ((7*16)+10)
-    a.tile_orientation = 0
-    a = game_state.table_tiles.add()
-    a.tile_type = 1
-    a.tile_position = ((8*16)+10)
     a.tile_orientation = 2
     a = game_state.table_tiles.add()
     a.tile_type = 1
-    a.tile_position = ((9*16)+10)
+    a.tile_position = ((7*16)+10)
+    a.tile_orientation = 1
+    a = game_state.table_tiles.add()
+    a.tile_type = 1
+    a.tile_position = ((8*16)+10)
     a.tile_orientation = 3
+    a = game_state.table_tiles.add()
+    a.tile_type = 1
+    a.tile_position = ((9*16)+10)
+    a.tile_orientation = 0
     
     game_state.id = 1
     player_a = game_state.players.add()
@@ -1389,17 +1515,17 @@ def initialize_game_state():
     player_b.workers_remaining = 2
     player_b.total_workers = 2
     
-    #DEV MODE ACTIVATED
-    #game_state.players[0].water=20
-    #game_state.players[1].water=20
-    #game_state.players[0].electricity=20
-    #game_state.players[1].electricity=20
-    #game_state.players[0].information=20
-    #game_state.players[1].information=20
-    #game_state.players[0].metal=20
-    #game_state.players[1].metal=20
-    #game_state.players[0].rare_metal=20
-    #game_state.players[1].rare_metal=20
+    # DEV MODE ACTIVATED
+    # game_state.players[0].water=20
+    # game_state.players[1].water=20
+    # game_state.players[0].electricity=20
+    # game_state.players[1].electricity=20
+    # game_state.players[0].information=20
+    # game_state.players[1].information=20
+    # game_state.players[0].metal=20
+    # game_state.players[1].metal=20
+    # game_state.players[0].rare_metal=20
+    # game_state.players[1].rare_metal=20
 class TileType ():
     def __init__(self):
         self.facility_connection = [False,False,False,False]
@@ -1408,14 +1534,14 @@ def initiate_tile_types ():
     types = []
     for i in range(27):
         types.append(TileType())
-    types[0].facility_connection[1]=True
-    types[1].city_connection[1]=True
-    types[2].facility_connection[1]=True
-    types[2].facility_connection[3]=True
-    types[3].city_connection[1]=True
-    types[3].city_connection[3]=True
-    types[4].facility_connection[3]=True
-    types[4].city_connection[1]=True
+    types[0].facility_connection[0]=True
+    types[1].city_connection[0]=True
+    types[2].facility_connection[0]=True
+    types[2].facility_connection[2]=True
+    types[3].city_connection[0]=True
+    types[3].city_connection[2]=True
+    types[4].facility_connection[0]=True
+    types[4].city_connection[2]=True
     types[5].facility_connection[1]=True
     types[5].city_connection[2]=True
     types[6].facility_connection[2]=True
@@ -1427,7 +1553,7 @@ def initiate_tile_types ():
     types[10].city_connection[0]=True
     types[10].city_connection[3]=True
     for i in range(11,19):
-        types[i].facility_connection[1] = True
+        types[i].facility_connection[0] = True
     return types
 def initiate_upgrade_types():
     types = []
@@ -1491,7 +1617,22 @@ class UpgradeType():
         self.information=0
         self.metal=0
         self.rare_metal=0
-    def cost(self):
+    def cost(self,upgrade_number):
+        cost_increase = 0
+        if game_state.upgrades_available[25]==False:
+            if upgrade_owner_number(25)!=player_identity:
+                if game_state.upgrades_available[16]==True or (game_state.upgrades_available[16]==False and upgrade_owner_number(16)!=player_identity):
+                    cost_increase = get_highest_costed_resource(upgrade_number)
+        if cost_increase==1:
+            self.electricity+=1
+        elif cost_increase==2:
+            self.water+=1
+        elif cost_increase==3:
+            self.information+=1
+        elif cost_increase==4:
+            self.metal+=1
+        elif cost_increase==5:
+            self.rare_metal+=1
         amount = ""
         if self.electricity>0:
             amount+=" Electricity: "+str(self.electricity)
@@ -1503,6 +1644,16 @@ class UpgradeType():
             amount+=" Metal: "+str(self.metal)
         if self.rare_metal>0:
             amount+=" Rare Metal: "+str(self.rare_metal)
+        if cost_increase==1:
+            self.electricity-=1
+        elif cost_increase==2:
+            self.water-=1
+        elif cost_increase==3:
+            self.information-=1
+        elif cost_increase==4:
+            self.metal-=1
+        elif cost_increase==5:
+            self.rare_metal-=1
         return amount
 def screen_initialize():
     global screen
@@ -1524,20 +1675,37 @@ def screen_update():
             city_color=(0,0,255)
         if rotated.facility_connection[1]==True:
             pygame.draw.lines(screen,(255,0,0),True,((x+30,y),(x+15,y+15),(x+30,y+30)),4)
+            if region_closed(get_region(i))==True:
+                pygame.draw.polygon(screen,(255,0,0),[(x+30,y),(x+15,y+15),(x+30,y+30)])
         if rotated.city_connection[1]==True:
             pygame.draw.lines(screen,city_color,True,((x+30,y),(x+15,y+15),(x+30,y+30)),4)
+            if region_closed(get_city_region(i))==True:
+                pygame.draw.polygon(screen,city_color,[(x+30,y),(x+15,y+15),(x+30,y+30)])
         if rotated.facility_connection[2]==True:
             pygame.draw.lines(screen,(255,0,0),True,((x+30,y+30),(x+15,y+15),(x,y+30)),4)
+            if region_closed(get_region(i))==True:
+                pygame.draw.polygon(screen,(255,0,0),[(x+30,y+30),(x+15,y+15),(x,y+30)])            
         if rotated.city_connection[2]==True:
             pygame.draw.lines(screen,city_color,True,((x+30,y+30),(x+15,y+15),(x,y+30)),4)
+            if region_closed(get_city_region(i))==True:
+                pygame.draw.polygon(screen,city_color,[(x+30,y+30),(x+15,y+15),(x,y+30)])            
         if rotated.facility_connection[3]==True:
             pygame.draw.lines(screen,(255,0,0),True,((x,y),(x+15,y+15),(x,y+30)),4)
+            if region_closed(get_region(i))==True:
+                pygame.draw.polygon(screen,(255,0,0),[(x,y),(x+15,y+15),(x,y+30)])            
         if rotated.city_connection[3]==True:
             pygame.draw.lines(screen,city_color,True,((x,y),(x+15,y+15),(x,y+30)),4)
+            if region_closed(get_city_region(i))==True:
+                pygame.draw.polygon(screen,city_color,[(x,y),(x+15,y+15),(x,y+30)])
         if rotated.facility_connection[0]==True:
             pygame.draw.lines(screen,(255,0,0),True,((x,y),(x+15,y+15),(x+30,y)),4)
+            if region_closed(get_region(i))==True:
+                pygame.draw.polygon(screen,(255,0,0),[(x,y),(x+15,y+15),(x+30,y)])            
         if rotated.city_connection[0]==True:
             pygame.draw.lines(screen,city_color,True,((x,y),(x+15,y+15),(x+30,y)),4)
+            if region_closed(get_city_region(i))==True:
+                pygame.draw.polygon(screen,city_color,[(x,y),(x+15,y+15),(x+30,y)])
+            
         if i.electricity != None and i.electricity>0:
             font = pygame.font.Font(None,15)
             image = font.render(str(i.electricity),1,(255,255,0))
@@ -1564,7 +1732,7 @@ def screen_update():
             screen.blit(image,imagerect)
         if i.rare_metal != None and i.rare_metal>0:
             font = pygame.font.Font(None,15)
-            image = font.render(str(i.rare_metal),1,(255,0,0))
+            image = font.render(str(i.rare_metal),1,(255,128,0))
             imagerect = image.get_rect()
             imagerect = image.get_rect().move(x+12,y+12)
             screen.blit(image,imagerect)
@@ -1601,7 +1769,7 @@ def screen_update():
         elif i.tile_type==17 or i.tile_type==25:
             pygame.draw.circle(screen,(128,128,128),(x+24,y+24),6)
         elif i.tile_type==18 or i.tile_type==26:
-            pygame.draw.circle(screen,(255,0,0),(x+24,y+24),6)
+            pygame.draw.circle(screen,(255,128,0),(x+24,y+24),6)
         if i.player_1_worker_placed==True:
             pygame.draw.circle(screen,(0,0,255),(x+15,y+15),15)
         if i.player_2_worker_placed==True:
@@ -1632,7 +1800,7 @@ def screen_update():
     image = font.render(str(player.metal),1,(128,128,128))
     imagerect = image.get_rect().move(600,580)
     screen.blit(image,imagerect)
-    image = font.render(str(player.rare_metal),1,(255,0,0))
+    image = font.render(str(player.rare_metal),1,(255,128,0))
     imagerect = image.get_rect().move(620,580)
     screen.blit(image,imagerect)
     image = font.render(str("{0}/{1}".format(player.workers_remaining,player.total_workers)),1,(255,255,255))
@@ -1653,7 +1821,7 @@ def screen_update():
     image = font.render(str(opponent.metal),1,(128,128,128))
     imagerect = image.get_rect().move(600,50)
     screen.blit(image,imagerect)
-    image = font.render(str(opponent.rare_metal),1,(255,0,0))
+    image = font.render(str(opponent.rare_metal),1,(255,128,0))
     imagerect = image.get_rect().move(620,50)
     screen.blit(image,imagerect)
     image = font.render(str("{0}/{1}".format(opponent.workers_remaining,opponent.total_workers)),1,(255,255,255))
@@ -1662,16 +1830,30 @@ def screen_update():
     screen_update_upgrades()
     x,y=pygame.mouse.get_pos()
     screen_update_upgrade_float_text(x,y)
+    image = font.render("Tiles Remaining: {0}".format(len(game_state.stack_tiles)),1,(255,255,255))
+    imagerect = image.get_rect().move(0,0)
+    screen.blit(image,imagerect)
+    image = font.render("Turn {0}/{1}".format((18-len(game_state.stack_tiles)/4),18),1,(255,255,255))
+    imagerect = image.get_rect().move(0,15)
+    screen.blit(image,imagerect)
     pygame.display.flip()
 def screen_update_upgrades():
     font = pygame.font.Font(None,15)
     for i in range(32):
         if game_state.upgrades_available[i]==True:
-            image = font.render(upgrade_types[i].name,1,(255,255,255))
+            if i>=0 and i<=7:
+                color=(0,0,255)
+            elif i>=8 and i<=15:
+                color=(255,255,0)
+            elif i>=16 and i<=23:
+                color=(0,255,0)
+            elif i>=24 and i<=31:
+                color=(128,128,128)
+            image = font.render(upgrade_types[i].name,1,color)
             imagerect = image.get_rect().move(490,100+i*15)
             screen.blit(image,imagerect)
 def screen_update_mouse((x2,y2),tile):
-    screen_update()
+    screen_update_message("Place a tile")
     pygame.draw.rect(screen,(255,255,255),pygame.Rect(x2,y2,30,30),2)
     if tile_types[tile.tile_type].facility_connection[1]==True:
         pygame.draw.lines(screen,(255,0,0),True,((x2+30,y2),(x2+15,y2+15),(x2+30,y2+30)),4)
@@ -1719,7 +1901,7 @@ def screen_update_mouse((x2,y2),tile):
         screen.blit(image,imagerect)
     pygame.display.flip()
 def screen_update_mouse_rotate((x2,y2),tile):
-    screen_update()
+    screen_update_message("Rotate the tile to the desired position")
     pygame.draw.rect(screen,(255,255,255),pygame.Rect(x2,y2,30,30),2)
     rotated = get_rotated_tile_type(tile)
     if rotated.facility_connection[1]==True:
@@ -1768,15 +1950,17 @@ def screen_update_mouse_rotate((x2,y2),tile):
         screen.blit(image,imagerect)
     pygame.display.flip()
 def screen_update_mouse_worker((x,y)):
-    screen_update()
-    pygame.draw.circle(screen,(255,255,255),(x+15,y+15),15)
+    screen_update_message("Placing worker {0}/{1}".format(game_state.players[player_identity].total_workers-game_state.players[player_identity].workers_remaining,game_state.players[player_identity].total_workers))
+    pygame.draw.circle(screen,(255,255,255),(x,y),15)
+    if find_tile_by_position(((x/30)*16)+(y/30))!=None:
+        pygame.draw.rect(screen,(0,255,0),pygame.Rect((x/30)*30,(y/30)*30,30,30),2)
     pygame.display.flip()
 def screen_update_message(message):
     screen_update()
     font = pygame.font.Font(None,30)
     image = font.render((message),1,(255,255,255))
     imagerect = image.get_rect()
-    imagerect = image.get_rect().move(95,50)
+    imagerect = image.get_rect().move(95,25)
     screen.blit(image,imagerect)
     pygame.display.flip()
 def screen_update_upgrade_float_text(x,y):
@@ -1784,21 +1968,21 @@ def screen_update_upgrade_float_text(x,y):
     upgrade,owner = upgrade_hover(x,y)
     if upgrade!=None:
         image = font.render(upgrade_types[upgrade].name,1,(255,255,255))
-        imagerect = image.get_rect().move(95,80)
+        imagerect = image.get_rect().move(95,50)
         screen.blit(image,imagerect)
-        image = font.render(upgrade_types[upgrade].cost(),1,(255,255,255))
-        imagerect = image.get_rect().move(95,95)
+        image = font.render(upgrade_types[upgrade].cost(upgrade),1,(255,255,255))
+        imagerect = image.get_rect().move(95,65)
         screen.blit(image,imagerect)
         image = font.render(upgrade_types[upgrade].description,1,(255,255,255))
-        imagerect = image.get_rect().move(95,110)
+        imagerect = image.get_rect().move(95,80)
         screen.blit(image,imagerect)
         if upgrade_types[upgrade].description2!="":
             image = font.render(upgrade_types[upgrade].description2,1,(255,255,255))
-            imagerect = image.get_rect().move(95,125)
+            imagerect = image.get_rect().move(95,95)
             screen.blit(image,imagerect)
         if upgrade_types[upgrade].description3!="":
             image = font.render(upgrade_types[upgrade].description3,1,(255,255,255))
-            imagerect = image.get_rect().move(95,140)
+            imagerect = image.get_rect().move(95,110)
             screen.blit(image,imagerect)
         if owner!= None:
             if owner==player_identity:

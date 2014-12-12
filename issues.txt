@@ -1,0 +1,5 @@
+---
+debug changes:
+20 resources
+#no lay tiles
+K_q quits
