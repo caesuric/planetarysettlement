@@ -1,0 +1,39 @@
+package planetarysettlement;
+
+message GameState {
+	repeated bool upgrades_available = 1; //upgrades available on the board
+	repeated Tile stack_tiles = 2; //tiles in the stack
+	repeated Tile table_tiles = 3; //tiles on the table
+	required uint32 id = 4 [default = 1]; // iteration of board state
+	repeated Player players = 5; //description of players
+	}
+
+message Tile {
+	required uint32 tile_type = 1 [default = 1];
+	optional uint32 tile_orientation = 2 [default = 1];
+	optional sint32 upgrade_built = 3 [default = -1];
+	optional uint32 upgrade_owner = 4 [default = 0];
+	optional uint32 electricity = 5 [default = 0];
+	optional uint32 information = 6 [default = 0];
+	optional uint32 metal = 7 [default = 0];
+	optional uint32 rare_metal = 8 [default = 0];
+	optional uint32 water = 9 [default = 0];
+	optional uint32 tile_position = 10; //2-dimensional position of tile on board ((column*16)+row)
+	optional bool player_1_worker_placed = 11;
+	optional bool player_2_worker_placed = 12;
+    optional uint32 city_online_status = 13; //0 = not online, 1 = tile brought online, 2 = entire city online
+	optional uint32 counters = 14 [default=0];
+	}
+
+message Player {
+	optional uint32 vp = 1 [default = 0];
+	optional uint32 electricity = 2 [default = 0];
+	optional uint32 information = 3 [default = 0];
+	optional uint32 metal = 4 [default = 0];
+	optional uint32 rare_metal = 5 [default = 0];
+	optional uint32 water = 6 [default = 0];
+	required bool is_first_player = 7 [default = true];
+	required bool is_turn_to_place = 8 [default = true];
+	required uint32 workers_remaining = 9 [default = 2];
+	required uint32 total_workers = 10 [default = 2];
+	}
