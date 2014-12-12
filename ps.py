@@ -31,7 +31,7 @@ def main(address, port):
     if (is_server==False):
         context = zmq.Context()
         socket = context.socket(zmq.REP)
-        socket.bind("tcp://{0}:{1}".format(address, port))
+        socket.connect("tcp://{0}:{1}".format(address, port))
         game_state = GameState()
         receive_game_state()
         send_game_state()
@@ -39,7 +39,7 @@ def main(address, port):
     else:
         context = zmq.Context()
         socket = context.socket(zmq.REQ)
-        socket.connect("tcp://{0}:{1}".format(address, port))
+        socket.bind("tcp://{0}:{1}".format(address, port))
         game_state = GameState()
         initialize_game_state()
         send_game_state()
