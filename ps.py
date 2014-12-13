@@ -468,7 +468,7 @@ def place_worker_input():
     if tile_selected==None:
         return False
     type = tile_selected.tile_type
-    if type==0 or type==3 or type==4 or type==5 or type==6 or type==7 or type==9 or type>=11:
+    if type==0 or type==2 or type==3 or type==4 or type==5 or type==6 or type==7 or type==9 or type>=11:
         if region_closed(get_region(tile_selected))==True:
             if tile_selected.player_1_worker_placed==False and tile_selected.player_2_worker_placed==False:
                 if player_identity==0:
@@ -483,28 +483,21 @@ def place_worker_input():
 def worker_pickup(is_first):
     cornerstones = get_cornerstones()
     regions = get_regions(cornerstones)
-    for i in regions:
-        p1workers,p2workers=get_workers_placed(i)
-        if (p1workers==1 and p2workers==0) or (p1workers==0 and p2workers==1):
-            remove_worker(i,is_first,1)
-        elif p1workers==0 and p2workers==0:
-            pass
+    for j in range(1,7):
+        for i in regions:
+            p1workers,p2workers=get_workers_placed(i)
+            if (p1workers==1 and p2workers==0) or (p1workers==0 and p2workers==1):
+                remove_worker(i,is_first,j)
+            elif p1workers==0 and p2workers==0:
+                pass
+            else:
+                remove_workers(i,is_first,j)
+        if is_first==True:
+            send_game_state()
+            receive_game_state()
         else:
-            remove_workers(i,is_first,1)
-    if is_first==True:
-        send_game_state()
-        receive_game_state()
-    else:
-        receive_game_state()
-        send_game_state()
-    for i in regions:
-        p1workers,p2workers=get_workers_placed(i)
-        if (p1workers==1 and p2workers==0) or (p1workers==0 and p2workers==1):
-            remove_worker(i,is_first,2)
-        elif p1workers==0 and p2workers==0:
-            pass
-        else:
-            remove_workers(i,is_first,2)
+            receive_game_state()
+            send_game_state()
     for i in game_state.table_tiles:
         i.player_1_worker_placed=False
         i.player_2_worker_placed=False
@@ -528,6 +521,12 @@ def get_workers_placed(region):
 def remove_worker(region,is_first,type):
     p1workers,p2workers=get_workers_placed(region)
     electricity,water,information,metal,rare_metal=get_resources(region)
+    if is_first==True:
+        first_player=player_identity
+    else:
+        first_player=player_identity+1
+        if first_player==2:
+            first_player=0
     for i in region:
         if type==1:
             if i.player_1_worker_placed==True:
@@ -548,23 +547,52 @@ def remove_worker(region,is_first,type):
             i.metal=0
             i.rare_metal=0
         elif type==2:
+            if i.tile_type==12 or i.tile_type==20:
+                if first_player==0:
+                    if p1workers==1:
+                        bring_city_online(0,is_first)
+                elif first_player==1:
+                    if p2workers==1:
+                        bring_city_online(1,is_first)
+                        
+        elif type==3:
+            if i.tile_type==12 or i.tile_type==20:
+                if first_player==1:
+                    if p1workers==1:
+                        bring_city_online(0,is_first)
+                elif first_player==0:
+                    if p2workers==1:
+                        bring_city_online(1,is_first)
+        elif type==4:
+            if i.tile_type==13 or i.tile_type==21:
+                if first_player==0:
+                    if p1workers==1:
+                        build_upgrade(0,is_first)
+                elif first_player==1:
+                    if p2workers==1:
+                        build_upgrade(1,is_first)
+        elif type==5:
+            if i.tile_type==13 or i.tile_type==21:
+                if first_player==1:
+                    if p1workers==1:
+                        build_upgrade(0,is_first)
+                elif first_player==0:
+                    if p2workers==1:
+                        build_upgrade(1,is_first)
+        elif type==6:
             if i.tile_type==11 or i.tile_type==19:
                 if p1workers==1:
                     construct_worker(0,is_first)
                 else:
-                    construct_worker(1,is_first)
-            if i.tile_type==12 or i.tile_type==20:
-                if p1workers==1:
-                    bring_city_online(0,is_first)
-                else:
-                    bring_city_online(1,is_first)
-            if i.tile_type==13 or i.tile_type==21:
-                if p1workers==1:
-                    build_upgrade(0,is_first)
-                else:
-                    build_upgrade(1,is_first)
+                    construct_worker(1,is_first)        
 def remove_workers(region,is_first,type):
     p1workers,p2workers=get_workers_placed(region)
+    if is_first==True:
+        first_player=player_identity
+    else:
+        first_player=player_identity+1
+        if first_player==2:
+            first_player=0
     if type==1:
         electricity,water,information,metal,rare_metal=get_resources(region)
         for i in region:
@@ -590,21 +618,47 @@ def remove_workers(region,is_first,type):
         region[0].rare_metal=rare_metal%(p1workers+p2workers)
     elif type==2:
         for i in region:
+            if i.tile_type==12 or i.tile_type==20:
+                if first_player==0:
+                    for j in range(p1workers):
+                        bring_city_online(0,is_first)
+                elif first_player==1:
+                    for j in range(p2workers):
+                        bring_city_online(1,is_first)
+    elif type==3:
+        for i in region:
+            if i.tile_type==12 or i.tile_type==20:
+                if first_player==1:
+                    for j in range(p1workers):
+                        bring_city_online(0,is_first)
+                elif first_player==0:
+                    for j in range(p2workers):
+                        bring_city_online(1,is_first)
+    elif type==4:
+        for i in region:
+            if i.tile_type==13 or i.tile_type==21:
+                if first_player==0:
+                    for j in range(p1workers):
+                        build_upgrade(0,is_first)
+                if first_player==1:
+                    for j in range(p2workers):
+                        build_upgrade(1,is_first)
+    elif type==5:
+        for i in region:
+            if i.tile_type==13 or i.tile_type==21:
+                if first_player==1:
+                    for j in range(p1workers):
+                        build_upgrade(0,is_first)
+                if first_player==0:
+                    for j in range(p2workers):
+                        build_upgrade(1,is_first)
+    elif type==6:
+        for i in region:
             if i.tile_type==11 or i.tile_type==19:
                 for j in range(p1workers):
                     construct_worker(0,is_first)
                 for j in range(p2workers):
                     construct_worker(1,is_first)
-            if i.tile_type==12 or i.tile_type==20:
-                for j in range(p1workers):
-                    bring_city_online(0,is_first)
-                for j in range(p2workers):
-                    bring_city_online(1,is_first)
-            if i.tile_type==13 or i.tile_type==21:
-                for j in range(p1workers):
-                    build_upgrade(0,is_first)
-                for j in range(p2workers):
-                    build_upgrade(1,is_first)
 def construct_worker(player_number,is_first):
     player=game_state.players[player_number]
     if (player.electricity+player.water+player.information+player.metal+player.rare_metal)<20:
