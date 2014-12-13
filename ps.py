@@ -3,7 +3,7 @@
 Runs a planetary settlement boardgame.
 
 Usage:
-    ps [<address>] [<port>] [--server | -s]
+    ps [<address>] [<port>] [<x>] [<y>] [--server | -s] [--fullscreen | -f]
     ps (-h | --help)
 
 Options:
@@ -15,7 +15,7 @@ from ps_pb2 import GameState,Player,Tile
 from pygame.locals import *
 pygame.init()
 	
-def main(address, port):
+def main(address, port,x,y):
     global player_identity
     global socket
     global tile_types
@@ -23,9 +23,13 @@ def main(address, port):
     global last_sent
     global upgrade_types
     global last_received_id
+    global x_res
+    global y_res
+    x_res = x
+    y_res = y
     last_received_id=1
     last_sent=False
-    screen_initialize()
+    screen_initialize(x,y)
     tile_types = initiate_tile_types()
     upgrade_types = initiate_upgrade_types()
     if (is_server==False):
@@ -54,10 +58,9 @@ def take_turn():
     if len(game_state.stack_tiles._values)==0:
         endgame()
     beginning_of_turn_phase(is_first)
-    if is_first==True:
-        lay_tiles()
-    else:
-        screen_update_message("Other player laying tiles.")
+    lay_tiles(is_first)
+    if is_first==False:
+       screen_update_message("Other player laying tiles.")
     if is_first==True:
         stock_resources()
     if is_first==True:
@@ -90,46 +93,84 @@ def take_turn():
     else:
         if last_sent==False:
             send_game_state()
-def lay_tiles():
+def lay_tiles(is_first):
     for i in range(4):
         screen_update()
         tile_drawn = game_state.stack_tiles._values[0]
-        game_state.stack_tiles.remove(tile_drawn)
-        while lay_tiles_input(tile_drawn)==False:
-            pass
+        if is_first==True:
+            game_state.stack_tiles.remove(tile_drawn)
+            while lay_tiles_input(tile_drawn)==False:
+                pass
+            send_game_state()
+            receive_game_state()
+        else:
+            screen_update_mouse((0,45),tile_drawn,False)
+            for event in pygame.event.get():
+                pass
+            receive_game_state()
+            send_game_state()
 def lay_tiles_input(tile_drawn):
+    global x_res
+    global y_res
     position_selected = False
     while position_selected==False:
         for event in pygame.event.get():
             if event.type == pygame.QUIT: sys.exit()
             if event.type == pygame.MOUSEMOTION:
-                screen_update_mouse(event.pos,tile_drawn)
+                screen_update_mouse(event.pos,tile_drawn,True)
             if event.type == pygame.MOUSEBUTTONUP:
                 column,row = event.pos
-                column=int(round(float(column)/30.0))
-                row=int(round(float(row)/30.0))
+                column=column/45
+                row=row/45
+                if column>15:
+                    column=15
                 position_selected=True
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
     orientation_selected=False
     orientation=0
     while orientation_selected==False:
         for event in pygame.event.get():
             if event.type == pygame.QUIT: sys.exit()
+            if event.type == pygame.KEYDOWN:
+                keystate = pygame.key.get_pressed()
+                if keystate[K_SPACE]==True:
+                    tile_drawn.tile_orientation+=1
+                    if tile_drawn.tile_orientation==4:
+                        tile_drawn.tile_orientation=0
+                    screen_update_mouse_rotate((column*45,row*45),tile_drawn)
+                if keystate[K_RETURN]==True:
+                    orientation_selected = True
             if event.type == pygame.MOUSEMOTION:
                 x,y = event.pos
-                if abs(x-(column*30))>abs(y-(row*30)):
-                    if x>(column*30):
+                if abs(x-(column*45))>abs(y-(row*45)):
+                    if x>(column*45):
                         orientation=1
                     else:
                         orientation = 3
                 else:
-                    if y>(row*30):
+                    if y>(row*45):
                         orientation = 2
                     else:
                         orientation = 0
                 tile_drawn.tile_orientation = orientation
-                screen_update_mouse_rotate((column*30,row*30),tile_drawn)
+                screen_update_mouse_rotate((column*45,row*45),tile_drawn)
             if event.type == pygame.MOUSEBUTTONUP:
                 orientation_selected = True
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
     newEntry = True
     tile_placed = None
     for j in game_state.table_tiles._values:
@@ -401,6 +442,8 @@ def place_worker():
             pass
     send_game_state()
 def place_worker_input():
+    global x_res
+    global y_res
     position_selected=False
     while position_selected==False:
         for event in pygame.event.get():
@@ -409,9 +452,17 @@ def place_worker_input():
                 screen_update_mouse_worker(event.pos)
             if event.type == pygame.MOUSEBUTTONUP:
                 column,row = event.pos
-                column=column/30
-                row=row/30
+                column=column/45
+                row=row/45
                 position_selected=True
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
     #check to see if selection is valid
     tile_selected = find_tile_by_position((column*16)+row)
     if tile_selected==None:
@@ -579,6 +630,8 @@ def construct_worker(player_number,is_first):
             receive_game_state()
             send_game_state()        
 def construct_worker_q():
+    global x_res
+    global y_res
     while True:
         for event in pygame.event.get():
             if event.type==pygame.QUIT: sys.exit()
@@ -588,85 +641,150 @@ def construct_worker_q():
                     return True
                 if keystate[K_n]==True:
                     return False
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
         screen_update_message("Construct a worker? (Y/N)")
 def spend_freely(number,message):
     screen_update_message(message)
     player = game_state.players[player_identity]
     spent = 0
     x = 0
-    while spent<number:
-        x = select_resource(message+" Spent: {0}/{1}".format(spent,number))
-        while x==0:
-            x = select_resource(message)
-        if x==1:
-            if player.electricity>0:
-                player.electricity-=1
-                spent+=1
-        elif x==2:
-            if player.water>0:
-                player.water-=1
-                spent+=1
-        elif x==3:
-            if player.information>0:
-                player.information-=1
-                spent+=1
-        elif x==4:
-            if player.metal>0:
-                player.metal-=1
-                spent+=1
-        elif x==5:
-            if player.rare_metal>0:
-                player.rare_metal-=1
-                spent+=1
-        screen_update_message(message)
-def select_resource(message):
-    screen_update_message(message)
+    original_electricity=player.electricity
+    original_water=player.water
+    original_information=player.information
+    original_metal=player.metal
+    original_rare_metal=player.rare_metal
+    originals = (original_electricity,original_water,original_information,original_metal,original_rare_metal)
+    
+    user_happy=False
+    while user_happy==False:
+        while spent<number:
+            x = select_resource(message+" Spent: {0}/{1}".format(spent,number),originals)
+            while x==0:
+                x = select_resource(message+" Spent: {0}/{1}".format(spent,number),originals)
+            if x==1:
+                if player.electricity>0:
+                    player.electricity-=1
+                    spent+=1
+            elif x==2:
+                if player.water>0:
+                    player.water-=1
+                    spent+=1
+            elif x==3:
+                if player.information>0:
+                    player.information-=1
+                    spent+=1
+            elif x==4:
+                if player.metal>0:
+                    player.metal-=1
+                    spent+=1
+            elif x==5:
+                if player.rare_metal>0:
+                    player.rare_metal-=1
+                    spent+=1
+            screen_update_resource_screen(message,originals)
+        user_happy=spend_freely_confirm(originals)
+        if user_happy!=True:
+            player.electricity=original_electricity
+            player.water=original_water
+            player.information=original_information
+            player.metal=original_metal
+            player.rare_metal=original_rare_metal
+            spent=0
+def spend_freely_confirm(originals):
+    global x_res
+    global y_res
+    while True:
+        for event in pygame.event.get():
+            if event.type==pygame.QUIT: sys.exit()
+            if event.type==pygame.KEYDOWN:
+                keystate = pygame.key.get_pressed()
+                if keystate[K_y]==True:
+                    return True
+                if keystate[K_n]==True:
+                    return False
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
+        screen_update_resource_screen("Are you happy with how you spent your resources (Y/N)",originals)
+def select_resource(message,originals):
+    global x_res
+    global y_res
+    screen_update_resource_screen(message,originals)
     resource_selected=False
     while resource_selected==False:
         for event in pygame.event.get():
             if event.type == pygame.QUIT: sys.exit()
             if event.type == pygame.MOUSEMOTION:
-                screen_update_message(message)
+                screen_update_resource_screen(message,originals)
             if event.type == pygame.MOUSEBUTTONUP:
                 column,row = event.pos
-                if column>540 and column<640 and row>580 and row<640:
+                if column>(x_res-130) and column<x_res and row>(y_res-60) and row<(y_res):
                     resource_selected=True
-                    if column>540 and column<560 and row>580 and row<640:
+                    if column>(x_res-130) and column<(x_res-110):
                         return 1
-                    elif column>560 and column<580 and row>580 and row<640:
+                    elif column>(x_res-110) and column<(x_res-90):
                         return 2
-                    elif column>580 and column<600 and row>580 and row<640:
+                    elif column>(x_res-90) and column<(x_res-70):
                         return 3
-                    elif column>600 and column<620 and row>580 and row<640:
+                    elif column>(x_res-70) and column<(x_res-50):
                         return 4
-                    elif column>620 and column<640 and row>580 and row<640:
+                    elif column>(x_res-50) and column<(x_res-30):
                         return 5
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
     return 0
 def select_resource_q(message):
+    global x_res
+    global y_res
     resource_selected=False
     while resource_selected==False:
+        screen_update_message(message)
         for event in pygame.event.get():
             if event.type == pygame.QUIT: sys.exit()
-            if event.type == pygame.MOUSEMOTION:
-                screen_update_message(message)
             if event.type == pygame.MOUSEBUTTONUP:
                 column,row = event.pos
-                if column>540 and column<640 and row>580 and row<640:
+                if column>(x_res-130) and column<x_res and row>(y_res-60) and row<(y_res):
                     resource_selected=True
-                    if column>540 and column<560 and row>580 and row<640:
+                    if column>(x_res-130) and column<(x_res-110):
                         return 1
-                    elif column>560 and column<580 and row>580 and row<640:
+                    elif column>(x_res-110) and column<(x_res-90):
                         return 2
-                    elif column>580 and column<600 and row>580 and row<640:
+                    elif column>(x_res-90) and column<(x_res-70):
                         return 3
-                    elif column>600 and column<620 and row>580 and row<640:
+                    elif column>(x_res-70) and column<(x_res-50):
                         return 4
-                    elif column>620 and column<640 and row>580 and row<640:
+                    elif column>(x_res-50) and column<(x_res-30):
                         return 5
             if event.type == pygame.KEYDOWN:
                 keystate = pygame.key.get_pressed()
                 if keystate[K_q]==True:
                     return 0
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
     return 0
 def bring_city_online(player_number,is_first):
     player=game_state.players[player_number]
@@ -675,7 +793,7 @@ def bring_city_online(player_number,is_first):
     if player_number!=player_identity:
         screen_update_message("Other player delivering goods to a city.")
     if player_number==player_identity:
-        while (player.electricity+player.water+player.information+player.metal+player.rare_metal)>=5 and bring_city_online_q()==True:
+        while (player.electricity+player.water+player.information+player.metal+player.rare_metal)>=5 and cities_to_be_brought_online()==True and bring_city_online_q()==True:
             spend_freely(5,"Spend 5 to bring a city online.")
             while bring_city_online_input(player_number,"Select a city tile to bring online",is_first)==False:
                 pass
@@ -688,8 +806,18 @@ def bring_city_online(player_number,is_first):
             send_game_state()
         else:
             receive_game_state()
-            send_game_state()        
+            send_game_state()
+def cities_to_be_brought_online():
+    for i in game_state.table_tiles:
+        type = i.tile_type
+        if i.city_online_status==0:
+            if type==1 or type==3 or type==4 or type==5 or type==6 or type==8 or type==10:
+                if region_closed(get_city_region(i)):
+                    return True
+    return False
 def bring_city_online_q():
+    global x_res
+    global y_res
     while True:
         for event in pygame.event.get():
             if event.type==pygame.QUIT: sys.exit()
@@ -699,21 +827,35 @@ def bring_city_online_q():
                     return True
                 if keystate[K_n]==True:
                     return False
-                # if keystate[K_q]==True:
-                    # endgame()
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
         screen_update_message("Bring a city tile online? (Y/N)")
 def bring_city_online_input(player_number,message,is_first):
+    global x_res
+    global y_res
     position_selected = False
     while position_selected==False:
         for event in pygame.event.get():
             if event.type == pygame.QUIT: sys.exit()
-            if event.type == pygame.MOUSEMOTION:
-                screen_update()
             if event.type == pygame.MOUSEBUTTONUP:
                 column,row = event.pos
-                column=(column/30)
-                row=(row/30)
+                column=(column/45)
+                row=(row/45)
                 position_selected=True
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
         screen_update_message(message)
     tile = find_tile_by_position((column*16)+row)
     if tile==None:
@@ -804,6 +946,8 @@ def build_upgrade_offshoot(player_number,is_first):
             while build_upgrade_input(player_number,"Select an upgrade to build")==False:
                 pass
 def build_upgrade_q():
+    global x_res
+    global y_res
     while True:
         for event in pygame.event.get():
             if event.type==pygame.QUIT: sys.exit()
@@ -813,25 +957,41 @@ def build_upgrade_q():
                     return True
                 if keystate[K_n]==True:
                     return False
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
         screen_update_message("Build an upgrade? (Y/N)")
 def build_upgrade_input(player_number,message):
+    global x_res
+    global y_res
     position_selected = False
     while position_selected==False:
         for event in pygame.event.get():
             if event.type == pygame.QUIT: sys.exit()
-            if event.type == pygame.MOUSEMOTION:
-                screen_update()
             if event.type == pygame.MOUSEBUTTONUP:
                 column,row = event.pos
-                if column>490:
+                if column>(x_res-150):
                     if row>100 and row<580:
                         row=((row-100)/15)
                         position_selected=True
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
         screen_update_message(message)
     screen_update()
     if row==13 and game_state.players[player_number].vp==0:
         return False
-    if upgrade_costs_not_met(player_number,row):
+    if upgrade_costs_not_met(player_number,row)==True:
         return False
     while build_upgrade_input2(player_number,"Select a spot to build",row)==False:
         pass
@@ -875,9 +1035,10 @@ def upgrade_costs_not_met(player_number,upgrade_number):
         upgrade.metal-=1
     elif cost_increase==5:
         upgrade.rare_metal-=1
-        return returnValue
-        
+    return returnValue
 def build_upgrade_input2(player_number,message,upgrade):
+    global x_res
+    global y_res
     possible = False
     for i in game_state.table_tiles:
         if i.city_online_status==2:
@@ -888,13 +1049,19 @@ def build_upgrade_input2(player_number,message,upgrade):
     while position_selected==False:
         for event in pygame.event.get():
             if event.type == pygame.QUIT: sys.exit()
-            if event.type == pygame.MOUSEMOTION:
-                screen_update()
             if event.type == pygame.MOUSEBUTTONUP:
                 column,row = event.pos
-                column=(column/30)
-                row=(row/30)
+                column=(column/45)
+                row=(row/45)
                 position_selected=True
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
         screen_update_message(message)
     tile = find_tile_by_position((column*16)+row)
     if tile==None:
@@ -962,9 +1129,9 @@ def pay_upgrade_cost(row,player_number):
     if game_state.upgrades_available[10]==False:
         if upgrade_owner_number(10)==player_number:
             if upgrade.electricity>1 or upgrade.water>1 or upgrade.information>1 or upgrade.metal>1 or upgrade.rare_metal>1:
-                x = select_resource("Choose a resource to discount on upgrade purchase:")
+                x = select_resource("Choose a resource to discount on upgrade purchase:",(player.electricity,player.water,player.information,player.metal,player.rare_metal))
                 while x==0 or (x==1 and upgrade.electricity<2) or (x==2 and upgrade.water<2) or (x==3 and upgrade.information<2) or (x==4 and upgrade.metal<2) or (x==5 and upgrade.rare_metal<2):
-                    x = select_resource("Choose a resource to discount on upgrade purchase:")
+                    x = select_resource("Choose a resource to discount on upgrade purchase:",(player.electricity,player.water,player.information,player.metal,player.rare_metal))
                 if x==1:
                     player.electricity+=1
                 elif x==2:
@@ -1122,9 +1289,9 @@ def trigger_upgrade_on_turn_begins(upgrade,is_first):
                     game_state.players[1].electricity+=3
     elif upgrade==30:
         if player_identity==upgrade_owner_number(upgrade):
-            x = select_resource("Select a resource for your opponent to lose.")
+            x = select_resource_for_opponent_to_lose("Select a resource for your opponent to lose.")
             while x==0:
-                x = select_resource()
+                x = select_resource_for_opponent_to_lose("Select a resource for your opponent to lose.")
             opponent_number = player_identity+1
             if opponent_number==2:
                 opponent_number=0
@@ -1150,6 +1317,30 @@ def trigger_upgrade_on_turn_begins(upgrade,is_first):
             if count_counters_on_upgrade(upgrade)>=2:
                 if all_upgrades_in_city_are_bureaucracy(upgrade):
                     use_the_hive(player_identity)
+def select_resource_for_opponent_to_lose(message):
+    opponent_number = player_identity+1
+    if opponent_number==2:
+        opponent_number=0
+    opponent = game_state.players[opponent_number]
+    selected = False
+    while selected == False:
+        x = select_resource(message,(opponent.electricity,opponent.water,opponent.information,opponent.metal,opponent.rare_metal))
+        if x==1:
+            if opponent.electricity>0:
+                selected=True
+        elif x==2:
+            if opponent.water>0:
+                selected=True
+        elif x==3:
+            if opponent.information>0:
+                selected=True
+        elif x==4:
+            if opponent.metal>0:
+                selected=True
+        elif x==5:
+            if opponent.rare_metal>0:
+                selected=True
+    return x
 def count_adjacent_non_datahosting_upgrades(upgrade):
     x,y = get_upgrade_location(upgrade)
     count = 0
@@ -1176,9 +1367,9 @@ def get_upgrade_location(upgrade):
     return (x,y)
 def gain_any_one_good(player_number,amount):
     player = game_state.players[player_number]
-    x = select_resource("Select a resource to gain {0} of".format(amount))
+    x = select_resource("Select a resource to gain {0} of".format(amount),(player.electricity,player.water,player.information,player.metal,player.rare_metal))
     while x==0:
-        x = select_resource("Select a resource to gain {0} of".format(amount))
+        x = select_resource("Select a resource to gain {0} of".format(amount),(player.electricity,player.water,player.information,player.metal,player.rare_metal))
     if x==1:
         player.electricity+=amount
     elif x==2:
@@ -1192,9 +1383,9 @@ def gain_any_one_good(player_number,amount):
 def gain_any_combination_of_goods(player_number,amount):
     player = game_state.players[player_number]
     for i in range(amount):
-        x = select_resource("Select a resource to gain ({0} remaining):".format(amount-i))
+        x = select_resource("Select a resource to gain ({0} remaining):".format(amount-i),(player.electricity,player.water,player.information,player.metal,player.rare_metal))
         while x==0:
-            x = select_resource()
+            x = select_resource("Select a resource to gain ({0} remaining):".format(amount-i),(player.electricity,player.water,player.information,player.metal,player.rare_metal))
         if x==1:
             player.electricity+=1
         elif x==2:
@@ -1276,6 +1467,8 @@ def is_non_bureaucracy_upgrade(tile):
     else:
         return False
 def use_the_hive(player_number):
+    global x_res
+    global y_res
     player = game_state.players[player_number]
     while True:
         for event in pygame.event.get():
@@ -1285,8 +1478,16 @@ def use_the_hive(player_number):
                 if keystate[K_y]==True:
                     if remove_counters_from_upgrade(31,2)==True:
                         player.vp+=3
-                if keystate[K_n]==True:
+                if keystate[K_n]==True or count_counters_on_upgrade(31)<2:
                     return
+            if event.type == pygame.VIDEORESIZE:
+                x_res = event.w
+                y_res = event.h
+                if x_res<880:
+                    x_res=880
+                if y_res<720:
+                    y_res=720
+                pygame.display.set_mode((x_res,y_res),RESIZABLE)
         screen_update_message("Use The Hive? (Y/N)")    
 def at_least_one_other_upgrade_owned_in_city(upgrade,player):
     x,y = get_upgrade_location(upgrade)
@@ -1516,16 +1717,16 @@ def initialize_game_state():
     player_b.total_workers = 2
     
     # DEV MODE ACTIVATED
-    # game_state.players[0].water=20
-    # game_state.players[1].water=20
-    # game_state.players[0].electricity=20
-    # game_state.players[1].electricity=20
-    # game_state.players[0].information=20
-    # game_state.players[1].information=20
-    # game_state.players[0].metal=20
-    # game_state.players[1].metal=20
-    # game_state.players[0].rare_metal=20
-    # game_state.players[1].rare_metal=20
+    game_state.players[0].water=20
+    game_state.players[1].water=20
+    game_state.players[0].electricity=20
+    game_state.players[1].electricity=20
+    game_state.players[0].information=20
+    game_state.players[1].information=20
+    game_state.players[0].metal=20
+    game_state.players[1].metal=20
+    game_state.players[0].rare_metal=20
+    game_state.players[1].rare_metal=20
 class TileType ():
     def __init__(self):
         self.facility_connection = [False,False,False,False]
@@ -1619,6 +1820,7 @@ class UpgradeType():
         self.rare_metal=0
     def cost(self,upgrade_number):
         cost_increase = 0
+        player = game_state.players[player_identity]
         if game_state.upgrades_available[25]==False:
             if upgrade_owner_number(25)!=player_identity:
                 if game_state.upgrades_available[16]==True or (game_state.upgrades_available[16]==False and upgrade_owner_number(16)!=player_identity):
@@ -1633,17 +1835,38 @@ class UpgradeType():
             self.metal+=1
         elif cost_increase==5:
             self.rare_metal+=1
-        amount = ""
+        costs=[]
+        colors=[]
         if self.electricity>0:
-            amount+=" Electricity: "+str(self.electricity)
+            costs.append("Electricity: "+str(self.electricity))
+            if player.electricity<self.electricity:
+                colors.append((255,0,0))
+            else:
+                colors.append((255,255,0))
         if self.water>0:
-            amount+=" Water: "+str(self.water)
+            costs.append("Water: "+str(self.water))
+            if player.water<self.water:
+                colors.append((255,0,0))
+            else:
+                colors.append((0,255,255))
         if self.information>0:
-            amount+=" Information: "+str(self.information)
+            costs.append("Information: "+str(self.information))
+            if player.information<self.information:
+                colors.append((255,0,0))
+            else:
+                colors.append((0,255,0))
         if self.metal>0:
-            amount+=" Metal: "+str(self.metal)
+            costs.append("Metal: "+str(self.metal))
+            if player.metal<self.metal:
+                colors.append((255,0,0))
+            else:
+                colors.append((128,128,128))
         if self.rare_metal>0:
-            amount+=" Rare Metal: "+str(self.rare_metal)
+            costs.append("Rare Metal: "+str(self.rare_metal))
+            if player.rare_metal<self.rare_metal:
+                colors.append((255,0,0))
+            else:
+                colors.append((255,128,0))
         if cost_increase==1:
             self.electricity-=1
         elif cost_increase==2:
@@ -1654,16 +1877,22 @@ class UpgradeType():
             self.metal-=1
         elif cost_increase==5:
             self.rare_metal-=1
-        return amount
-def screen_initialize():
+        return (costs,colors)
+def screen_initialize(x,y):
     global screen
-    screen = pygame.display.set_mode((640,640))
+    if fullscreen==True:
+        screen = pygame.display.set_mode((x,y),FULLSCREEN)
+    else:
+        screen = pygame.display.set_mode((x,y),RESIZABLE)
 def screen_update():
+    screen_update_helper()
+    pygame.display.flip()
+def screen_update_helper():
     screen.fill((0,0,0))
     for i in game_state.table_tiles:
-        x = get_x(i.tile_position)*30
-        y = get_y(i.tile_position)*30
-        pygame.draw.rect(screen,(255,255,255),pygame.Rect(x,y,30,30),2)
+        x = get_x(i.tile_position)*45
+        y = get_y(i.tile_position)*45
+        pygame.draw.rect(screen,(255,255,255),pygame.Rect(x,y,45,45),2)
         rotated = get_rotated_tile_type(i)
         if i.city_online_status==None:
             city_color=(128,128,128)
@@ -1672,39 +1901,39 @@ def screen_update():
         elif i.city_online_status==1:
             city_color=(0,128,0)
         elif i.city_online_status==2:
-            city_color=(0,0,255)
+            city_color=(0,64,255)
         if rotated.facility_connection[1]==True:
-            pygame.draw.lines(screen,(255,0,0),True,((x+30,y),(x+15,y+15),(x+30,y+30)),4)
+            pygame.draw.lines(screen,(255,0,0),True,((x+45,y),(x+22,y+22),(x+45,y+45)),4)
             if region_closed(get_region(i))==True:
-                pygame.draw.polygon(screen,(255,0,0),[(x+30,y),(x+15,y+15),(x+30,y+30)])
+                pygame.draw.polygon(screen,(255,0,0),[(x+45,y),(x+22,y+22),(x+45,y+45)])
         if rotated.city_connection[1]==True:
-            pygame.draw.lines(screen,city_color,True,((x+30,y),(x+15,y+15),(x+30,y+30)),4)
+            pygame.draw.lines(screen,city_color,True,((x+45,y),(x+22,y+22),(x+45,y+45)),4)
             if region_closed(get_city_region(i))==True:
-                pygame.draw.polygon(screen,city_color,[(x+30,y),(x+15,y+15),(x+30,y+30)])
+                pygame.draw.polygon(screen,city_color,[(x+45,y),(x+22,y+22),(x+45,y+45)])
         if rotated.facility_connection[2]==True:
-            pygame.draw.lines(screen,(255,0,0),True,((x+30,y+30),(x+15,y+15),(x,y+30)),4)
+            pygame.draw.lines(screen,(255,0,0),True,((x+45,y+45),(x+22,y+22),(x,y+45)),4)
             if region_closed(get_region(i))==True:
-                pygame.draw.polygon(screen,(255,0,0),[(x+30,y+30),(x+15,y+15),(x,y+30)])            
+                pygame.draw.polygon(screen,(255,0,0),[(x+45,y+45),(x+22,y+22),(x,y+45)])            
         if rotated.city_connection[2]==True:
-            pygame.draw.lines(screen,city_color,True,((x+30,y+30),(x+15,y+15),(x,y+30)),4)
+            pygame.draw.lines(screen,city_color,True,((x+45,y+45),(x+22,y+22),(x,y+45)),4)
             if region_closed(get_city_region(i))==True:
-                pygame.draw.polygon(screen,city_color,[(x+30,y+30),(x+15,y+15),(x,y+30)])            
+                pygame.draw.polygon(screen,city_color,[(x+45,y+45),(x+22,y+22),(x,y+45)])            
         if rotated.facility_connection[3]==True:
-            pygame.draw.lines(screen,(255,0,0),True,((x,y),(x+15,y+15),(x,y+30)),4)
+            pygame.draw.lines(screen,(255,0,0),True,((x,y),(x+22,y+22),(x,y+45)),4)
             if region_closed(get_region(i))==True:
-                pygame.draw.polygon(screen,(255,0,0),[(x,y),(x+15,y+15),(x,y+30)])            
+                pygame.draw.polygon(screen,(255,0,0),[(x,y),(x+22,y+22),(x,y+45)])            
         if rotated.city_connection[3]==True:
-            pygame.draw.lines(screen,city_color,True,((x,y),(x+15,y+15),(x,y+30)),4)
+            pygame.draw.lines(screen,city_color,True,((x,y),(x+22,y+22),(x,y+45)),4)
             if region_closed(get_city_region(i))==True:
-                pygame.draw.polygon(screen,city_color,[(x,y),(x+15,y+15),(x,y+30)])
+                pygame.draw.polygon(screen,city_color,[(x,y),(x+22,y+22),(x,y+45)])
         if rotated.facility_connection[0]==True:
-            pygame.draw.lines(screen,(255,0,0),True,((x,y),(x+15,y+15),(x+30,y)),4)
+            pygame.draw.lines(screen,(255,0,0),True,((x,y),(x+22,y+22),(x+45,y)),4)
             if region_closed(get_region(i))==True:
-                pygame.draw.polygon(screen,(255,0,0),[(x,y),(x+15,y+15),(x+30,y)])            
+                pygame.draw.polygon(screen,(255,0,0),[(x,y),(x+22,y+22),(x+45,y)])            
         if rotated.city_connection[0]==True:
-            pygame.draw.lines(screen,city_color,True,((x,y),(x+15,y+15),(x+30,y)),4)
+            pygame.draw.lines(screen,city_color,True,((x,y),(x+22,y+22),(x+45,y)),4)
             if region_closed(get_city_region(i))==True:
-                pygame.draw.polygon(screen,city_color,[(x,y),(x+15,y+15),(x+30,y)])
+                pygame.draw.polygon(screen,city_color,[(x,y),(x+22,y+22),(x+45,y)])
             
         if i.electricity != None and i.electricity>0:
             font = pygame.font.Font(None,15)
@@ -1714,70 +1943,70 @@ def screen_update():
             screen.blit(image,imagerect)
         if i.water != None and i.water>0:
             font = pygame.font.Font(None,15)
-            image = font.render(str(i.water),1,(0,0,255))
+            image = font.render(str(i.water),1,(0,255,255))
             imagerect = image.get_rect()
-            imagerect = image.get_rect().move(x+12,y+2)
+            imagerect = image.get_rect().move(x+18,y+2)
             screen.blit(image,imagerect)
         if i.information != None and i.information>0:
             font = pygame.font.Font(None,15)
             image = font.render(str(i.information),1,(0,255,0))
             imagerect = image.get_rect()
-            imagerect = image.get_rect().move(x+22,y+2)
+            imagerect = image.get_rect().move(x+33,y+2)
             screen.blit(image,imagerect)
         if i.metal != None and i.metal>0:
             font = pygame.font.Font(None,15)
             image = font.render(str(i.metal),1,(128,128,128))
             imagerect = image.get_rect()
-            imagerect = image.get_rect().move(x+2,y+12)
+            imagerect = image.get_rect().move(x+2,y+18)
             screen.blit(image,imagerect)
         if i.rare_metal != None and i.rare_metal>0:
             font = pygame.font.Font(None,15)
             image = font.render(str(i.rare_metal),1,(255,128,0))
             imagerect = image.get_rect()
-            imagerect = image.get_rect().move(x+12,y+12)
+            imagerect = image.get_rect().move(x+18,y+18)
             screen.blit(image,imagerect)
         if i.counters != None and i.counters>0:
             font = pygame.font.Font(None,15)
             image = font.render(str(i.counters),1,(255,255,255))
             imagerect = image.get_rect()
-            imagerect = image.get_rect().move(x+22,y+22)
+            imagerect = image.get_rect().move(x+33,y+33)
             screen.blit(image,imagerect)
         if i.tile_type==11 or i.tile_type==19:
-            font = pygame.font.Font(None,15)
+            font = pygame.font.Font(None,22)
             image = font.render("W",1,(255,255,255))
             imagerect = image.get_rect()
-            imagerect = image.get_rect().move(x+12,y+12)
+            imagerect = image.get_rect().move(x+18,y+18)
             screen.blit(image,imagerect)
         if i.tile_type==12 or i.tile_type==20:
-            font = pygame.font.Font(None,15)
+            font = pygame.font.Font(None,22)
             image = font.render("D",1,(255,255,255))
             imagerect = image.get_rect()
-            imagerect = image.get_rect().move(x+12,y+12)
+            imagerect = image.get_rect().move(x+18,y+18)
             screen.blit(image,imagerect)
         if i.tile_type==13 or i.tile_type==21:
-            font = pygame.font.Font(None,15)
+            font = pygame.font.Font(None,22)
             image = font.render("U",1,(255,255,255))
             imagerect = image.get_rect()
-            imagerect = image.get_rect().move(x+12,y+12)
+            imagerect = image.get_rect().move(x+18,y+18)
             screen.blit(image,imagerect)
         if i.tile_type==14 or i.tile_type==22:
-            pygame.draw.circle(screen,(255,255,0),(x+24,y+24),6)
+            pygame.draw.circle(screen,(255,255,0),(x+36,y+36),9)
         elif i.tile_type==15 or i.tile_type==23:
-            pygame.draw.circle(screen,(0,0,255),(x+24,y+24),6)
+            pygame.draw.circle(screen,(0,255,255),(x+36,y+36),9)
         elif i.tile_type==16 or i.tile_type==24:
-            pygame.draw.circle(screen,(0,255,0),(x+24,y+24),6)
+            pygame.draw.circle(screen,(0,255,0),(x+36,y+36),9)
         elif i.tile_type==17 or i.tile_type==25:
-            pygame.draw.circle(screen,(128,128,128),(x+24,y+24),6)
+            pygame.draw.circle(screen,(128,128,128),(x+36,y+36),9)
         elif i.tile_type==18 or i.tile_type==26:
-            pygame.draw.circle(screen,(255,128,0),(x+24,y+24),6)
+            pygame.draw.circle(screen,(255,128,0),(x+36,y+36),9)
         if i.player_1_worker_placed==True:
-            pygame.draw.circle(screen,(0,0,255),(x+15,y+15),15)
+            pygame.draw.circle(screen,(64,64,255),(x+22,y+22),15)
         if i.player_2_worker_placed==True:
-            pygame.draw.circle(screen,(255,0,0),(x+15,y+15),15)
+            pygame.draw.circle(screen,(255,64,64),(x+22,y+22),15)
         if i.upgrade_built!=None and i.upgrade_built!=-1:
-            font = pygame.font.Font(None,15)
+            font = pygame.font.Font(None,22)
             image = font.render("u",1,(255,255,255))
-            imagerect = image.get_rect().move(x+20,y+15)
+            imagerect = image.get_rect().move(x+18,y+26)
             screen.blit(image,imagerect)
     player = game_state.players[player_identity]
     opponent_identity = player_identity+1
@@ -1786,46 +2015,52 @@ def screen_update():
     opponent = game_state.players[opponent_identity]
     font = pygame.font.Font(None,15)
     image = font.render(str(player.vp),1,(255,255,255))
-    imagerect = image.get_rect().move(520,580)
+    imagerect = image.get_rect().move(x_res-150,y_res-60)
     screen.blit(image,imagerect)
     image = font.render(str(player.electricity),1,(255,255,0))
-    imagerect = image.get_rect().move(540,580)
+    imagerect = image.get_rect().move(x_res-130,y_res-60)
     screen.blit(image,imagerect)
-    image = font.render(str(player.water),1,(0,0,255))
-    imagerect = image.get_rect().move(560,580)
+    image = font.render(str(player.water),1,(0,255,255))
+    imagerect = image.get_rect().move(x_res-110,y_res-60)
     screen.blit(image,imagerect)
     image = font.render(str(player.information),1,(0,255,0))
-    imagerect = image.get_rect().move(580,580)
+    imagerect = image.get_rect().move(x_res-90,y_res-60)
     screen.blit(image,imagerect)
     image = font.render(str(player.metal),1,(128,128,128))
-    imagerect = image.get_rect().move(600,580)
+    imagerect = image.get_rect().move(x_res-70,y_res-60)
     screen.blit(image,imagerect)
     image = font.render(str(player.rare_metal),1,(255,128,0))
-    imagerect = image.get_rect().move(620,580)
+    imagerect = image.get_rect().move(x_res-50,y_res-60)
+    screen.blit(image,imagerect)
+    image = font.render("({0})".format(player.electricity+player.water+player.information+player.metal+player.rare_metal),1,(255,255,255))
+    imagerect = image.get_rect().move(x_res-30,y_res-60)
     screen.blit(image,imagerect)
     image = font.render(str("{0}/{1}".format(player.workers_remaining,player.total_workers)),1,(255,255,255))
-    imagerect = image.get_rect().move(520,605)
+    imagerect = image.get_rect().move(x_res-150,y_res-35)
     screen.blit(image,imagerect)
     image = font.render(str(opponent.vp),1,(255,255,255))
-    imagerect = image.get_rect().move(520,50)
+    imagerect = image.get_rect().move(x_res-150,50)
     screen.blit(image,imagerect)
     image = font.render(str(opponent.electricity),1,(255,255,0))
-    imagerect = image.get_rect().move(540,50)
+    imagerect = image.get_rect().move(x_res-130,50)
     screen.blit(image,imagerect)
-    image = font.render(str(opponent.water),1,(0,0,255))
-    imagerect = image.get_rect().move(560,50)
+    image = font.render(str(opponent.water),1,(0,255,255))
+    imagerect = image.get_rect().move(x_res-110,50)
     screen.blit(image,imagerect)
     image = font.render(str(opponent.information),1,(0,255,0))
-    imagerect = image.get_rect().move(580,50)
+    imagerect = image.get_rect().move(x_res-90,50)
     screen.blit(image,imagerect)
     image = font.render(str(opponent.metal),1,(128,128,128))
-    imagerect = image.get_rect().move(600,50)
+    imagerect = image.get_rect().move(x_res-70,50)
     screen.blit(image,imagerect)
     image = font.render(str(opponent.rare_metal),1,(255,128,0))
-    imagerect = image.get_rect().move(620,50)
+    imagerect = image.get_rect().move(x_res-50,50)
+    screen.blit(image,imagerect)
+    image = font.render("({0})".format(opponent.electricity+opponent.water+opponent.information+opponent.metal+opponent.rare_metal),1,(255,255,255))
+    imagerect = image.get_rect().move(x_res-30,50)
     screen.blit(image,imagerect)
     image = font.render(str("{0}/{1}".format(opponent.workers_remaining,opponent.total_workers)),1,(255,255,255))
-    imagerect = image.get_rect().move(520,75)
+    imagerect = image.get_rect().move(x_res-150,75)
     screen.blit(image,imagerect)
     screen_update_upgrades()
     x,y=pygame.mouse.get_pos()
@@ -1836,132 +2071,140 @@ def screen_update():
     image = font.render("Turn {0}/{1}".format((18-len(game_state.stack_tiles)/4),18),1,(255,255,255))
     imagerect = image.get_rect().move(0,15)
     screen.blit(image,imagerect)
-    pygame.display.flip()
 def screen_update_upgrades():
     font = pygame.font.Font(None,15)
     for i in range(32):
         if game_state.upgrades_available[i]==True:
             if i>=0 and i<=7:
-                color=(0,0,255)
+                color=(0,255,255)
             elif i>=8 and i<=15:
                 color=(255,255,0)
             elif i>=16 and i<=23:
                 color=(0,255,0)
             elif i>=24 and i<=31:
                 color=(128,128,128)
+            if upgrade_costs_not_met(player_identity,i)==False:
+                pygame.draw.circle(screen,color,(x_res-155,105+i*15),5)
             image = font.render(upgrade_types[i].name,1,color)
-            imagerect = image.get_rect().move(490,100+i*15)
+            imagerect = image.get_rect().move(x_res-150,100+i*15)
             screen.blit(image,imagerect)
-def screen_update_mouse((x2,y2),tile):
-    screen_update_message("Place a tile")
-    pygame.draw.rect(screen,(255,255,255),pygame.Rect(x2,y2,30,30),2)
+def screen_update_mouse((x2,y2),tile,is_active_player):
+    if is_active_player==True:
+        screen_update_message_helper("Place a tile")
+    else:
+        screen_update_message_helper("Other player is placing the tile displayed.")
+    x2=(x2/45)*45
+    y2=(y2/45)*45
+    pygame.draw.rect(screen,(255,255,255),pygame.Rect(x2,y2,45,45),2)
     if tile_types[tile.tile_type].facility_connection[1]==True:
-        pygame.draw.lines(screen,(255,0,0),True,((x2+30,y2),(x2+15,y2+15),(x2+30,y2+30)),4)
+        pygame.draw.lines(screen,(255,0,0),True,((x2+45,y2),(x2+22,y2+22),(x2+45,y2+45)),4)
     if tile_types[tile.tile_type].city_connection[1]==True:
-        pygame.draw.lines(screen,(0,0,255),True,((x2+30,y2),(x2+15,y2+15),(x2+30,y2+30)),4)
+        pygame.draw.lines(screen,(0,255,255),True,((x2+45,y2),(x2+22,y2+22),(x2+45,y2+45)),4)
     if tile_types[tile.tile_type].facility_connection[2]==True:
-        pygame.draw.lines(screen,(255,0,0),True,((x2+30,y2+30),(x2+15,y2+15),(x2,y2+30)),4)
+        pygame.draw.lines(screen,(255,0,0),True,((x2+45,y2+45),(x2+22,y2+22),(x2,y2+45)),4)
     if tile_types[tile.tile_type].city_connection[2]==True:
-        pygame.draw.lines(screen,(0,0,255),True,((x2+30,y2+30),(x2+15,y2+15),(x2,y2+30)),4)
+        pygame.draw.lines(screen,(0,255,255),True,((x2+45,y2+45),(x2+22,y2+22),(x2,y2+45)),4)
     if tile_types[tile.tile_type].facility_connection[3]==True:
-        pygame.draw.lines(screen,(255,0,0),True,((x2,y2),(x2+15,y2+15),(x2,y2+30)),4)
+        pygame.draw.lines(screen,(255,0,0),True,((x2,y2),(x2+22,y2+22),(x2,y2+45)),4)
     if tile_types[tile.tile_type].city_connection[3]==True:
-        pygame.draw.lines(screen,(0,0,255),True,((x2,y2),(x2+15,y2+15),(x2,y2+30)),4)
+        pygame.draw.lines(screen,(0,255,255),True,((x2,y2),(x2+22,y2+22),(x2,y2+45)),4)
     if tile_types[tile.tile_type].facility_connection[0]==True:
-        pygame.draw.lines(screen,(255,0,0),True,((x2,y2),(x2+15,y2+15),(x2+30,y2)),4)
+        pygame.draw.lines(screen,(255,0,0),True,((x2,y2),(x2+22,y2+22),(x2+45,y2)),4)
     if tile_types[tile.tile_type].city_connection[0]==True:
-        pygame.draw.lines(screen,(0,0,255),True,((x2,y2),(x2+15,y2+15),(x2+30,y2)),4)
+        pygame.draw.lines(screen,(0,255,255),True,((x2,y2),(x2+22,y2+22),(x2+45,y2)),4)
     if tile.tile_type==14 or tile.tile_type==22:
-	    pygame.draw.circle(screen,(255,255,0),(x2+15,y2+15),7)
+	    pygame.draw.circle(screen,(255,255,0),(x2+22,y2+22),9)
     elif tile.tile_type==15 or tile.tile_type==23:
-        pygame.draw.circle(screen,(0,0,255),(x2+15,y2+15),7)
+        pygame.draw.circle(screen,(0,255,255),(x2+22,y2+22),9)
     elif tile.tile_type==16 or tile.tile_type==24:
-        pygame.draw.circle(screen,(0,255,0),(x2+15,y2+15),7)
+        pygame.draw.circle(screen,(0,255,0),(x2+22,y2+22),9)
     elif tile.tile_type==17 or tile.tile_type==25:
-        pygame.draw.circle(screen,(128,128,128),(x2+15,y2+15),7)
+        pygame.draw.circle(screen,(128,128,128),(x2+22,y2+22),9)
     elif tile.tile_type==18 or tile.tile_type==26:
-        pygame.draw.circle(screen,(255,0,0),(x2+15,y2+15),7)
+        pygame.draw.circle(screen,(255,0,0),(x2+22,y2+22),9)
     if tile.tile_type==11 or tile.tile_type==19:
-        font = pygame.font.Font(None,15)
+        font = pygame.font.Font(None,22)
         image = font.render("W",1,(255,255,255))
         imagerect = image.get_rect()
-        imagerect = image.get_rect().move(x2+12,y2+12)
+        imagerect = image.get_rect().move(x2+18,y2+18)
         screen.blit(image,imagerect)
     if tile.tile_type==12 or tile.tile_type==20:
-        font = pygame.font.Font(None,15)
+        font = pygame.font.Font(None,22)
         image = font.render("D",1,(255,255,255))
         imagerect = image.get_rect()
-        imagerect = image.get_rect().move(x2+12,y2+12)
+        imagerect = image.get_rect().move(x2+18,y2+18)
         screen.blit(image,imagerect)
     if tile.tile_type==13 or tile.tile_type==21:
-        font = pygame.font.Font(None,15)
+        font = pygame.font.Font(None,22)
         image = font.render("U",1,(255,255,255))
         imagerect = image.get_rect()
-        imagerect = image.get_rect().move(x2+12,y2+12)
+        imagerect = image.get_rect().move(x2+18,y2+18)
         screen.blit(image,imagerect)
     pygame.display.flip()
 def screen_update_mouse_rotate((x2,y2),tile):
-    screen_update_message("Rotate the tile to the desired position")
-    pygame.draw.rect(screen,(255,255,255),pygame.Rect(x2,y2,30,30),2)
+    screen_update_message_helper("Rotate the tile to the desired position")
+    pygame.draw.rect(screen,(255,255,255),pygame.Rect(x2,y2,45,45),2)
     rotated = get_rotated_tile_type(tile)
     if rotated.facility_connection[1]==True:
-        pygame.draw.lines(screen,(255,0,0),True,((x2+30,y2),(x2+15,y2+15),(x2+30,y2+30)),4)
+        pygame.draw.lines(screen,(255,0,0),True,((x2+45,y2),(x2+22,y2+22),(x2+45,y2+45)),4)
     if rotated.city_connection[1]==True:
-        pygame.draw.lines(screen,(0,0,255),True,((x2+30,y2),(x2+15,y2+15),(x2+30,y2+30)),4)
+        pygame.draw.lines(screen,(0,255,255),True,((x2+45,y2),(x2+22,y2+22),(x2+45,y2+45)),4)
     if rotated.facility_connection[2]==True:
-        pygame.draw.lines(screen,(255,0,0),True,((x2+30,y2+30),(x2+15,y2+15),(x2,y2+30)),4)
+        pygame.draw.lines(screen,(255,0,0),True,((x2+45,y2+45),(x2+22,y2+22),(x2,y2+45)),4)
     if rotated.city_connection[2]==True:
-        pygame.draw.lines(screen,(0,0,255),True,((x2+30,y2+30),(x2+15,y2+15),(x2,y2+30)),4)
+        pygame.draw.lines(screen,(0,255,255),True,((x2+45,y2+45),(x2+22,y2+22),(x2,y2+45)),4)
     if rotated.facility_connection[3]==True:
-        pygame.draw.lines(screen,(255,0,0),True,((x2,y2),(x2+15,y2+15),(x2,y2+30)),4)
+        pygame.draw.lines(screen,(255,0,0),True,((x2,y2),(x2+22,y2+22),(x2,y2+45)),4)
     if rotated.city_connection[3]==True:
-        pygame.draw.lines(screen,(0,0,255),True,((x2,y2),(x2+15,y2+15),(x2,y2+30)),4)
+        pygame.draw.lines(screen,(0,255,255),True,((x2,y2),(x2+22,y2+22),(x2,y2+45)),4)
     if rotated.facility_connection[0]==True:
-        pygame.draw.lines(screen,(255,0,0),True,((x2,y2),(x2+15,y2+15),(x2+30,y2)),4)
+        pygame.draw.lines(screen,(255,0,0),True,((x2,y2),(x2+22,y2+22),(x2+45,y2)),4)
     if rotated.city_connection[0]==True:
-        pygame.draw.lines(screen,(0,0,255),True,((x2,y2),(x2+15,y2+15),(x2+30,y2)),4)
+        pygame.draw.lines(screen,(0,255,255),True,((x2,y2),(x2+22,y2+22),(x2+45,y2)),4)
     if tile.tile_type==14 or tile.tile_type==22:
-	    pygame.draw.circle(screen,(255,255,0),(x2+15,y2+15),7)
+	    pygame.draw.circle(screen,(255,255,0),(x2+22,y2+22),9)
     elif tile.tile_type==15 or tile.tile_type==23:
-        pygame.draw.circle(screen,(0,0,255),(x2+15,y2+15),7)
+        pygame.draw.circle(screen,(0,255,255),(x2+22,y2+22),9)
     elif tile.tile_type==16 or tile.tile_type==24:
-        pygame.draw.circle(screen,(0,255,0),(x2+15,y2+15),7)
+        pygame.draw.circle(screen,(0,255,0),(x2+22,y2+22),9)
     elif tile.tile_type==17 or tile.tile_type==25:
-        pygame.draw.circle(screen,(128,128,128),(x2+15,y2+15),7)
+        pygame.draw.circle(screen,(128,128,128),(x2+22,y2+22),9)
     elif tile.tile_type==18 or tile.tile_type==26:
-        pygame.draw.circle(screen,(255,0,0),(x2+15,y2+15),7)
+        pygame.draw.circle(screen,(255,0,0),(x2+22,y2+22),0)
     if tile.tile_type==11 or tile.tile_type==19:
-        font = pygame.font.Font(None,15)
+        font = pygame.font.Font(None,22)
         image = font.render("W",1,(255,255,255))
         imagerect = image.get_rect()
-        imagerect = image.get_rect().move(x2+12,y2+12)
+        imagerect = image.get_rect().move(x2+18,y2+18)
         screen.blit(image,imagerect)
     if tile.tile_type==12 or tile.tile_type==20:
-        font = pygame.font.Font(None,15)
+        font = pygame.font.Font(None,22)
         image = font.render("D",1,(255,255,255))
         imagerect = image.get_rect()
-        imagerect = image.get_rect().move(x2+12,y2+12)
+        imagerect = image.get_rect().move(x2+18,y2+18)
         screen.blit(image,imagerect)
     if tile.tile_type==13 or tile.tile_type==21:
-        font = pygame.font.Font(None,15)
+        font = pygame.font.Font(None,22)
         image = font.render("U",1,(255,255,255))
         imagerect = image.get_rect()
-        imagerect = image.get_rect().move(x2+12,y2+12)
+        imagerect = image.get_rect().move(x2+18,y2+18)
         screen.blit(image,imagerect)
     pygame.display.flip()
 def screen_update_mouse_worker((x,y)):
-    screen_update_message("Placing worker {0}/{1}".format(game_state.players[player_identity].total_workers-game_state.players[player_identity].workers_remaining,game_state.players[player_identity].total_workers))
+    screen_update_message_helper("Placing worker {0}/{1}".format(game_state.players[player_identity].total_workers-game_state.players[player_identity].workers_remaining,game_state.players[player_identity].total_workers))
     pygame.draw.circle(screen,(255,255,255),(x,y),15)
-    if find_tile_by_position(((x/30)*16)+(y/30))!=None:
-        pygame.draw.rect(screen,(0,255,0),pygame.Rect((x/30)*30,(y/30)*30,30,30),2)
+    if find_tile_by_position(((x/45)*16)+(y/45))!=None:
+        pygame.draw.rect(screen,(0,255,0),pygame.Rect((x/45)*45,(y/45)*45,45,45),2)
     pygame.display.flip()
-def screen_update_message(message):
-    screen_update()
+def screen_update_message_helper(message):
+    screen_update_helper()
     font = pygame.font.Font(None,30)
     image = font.render((message),1,(255,255,255))
     imagerect = image.get_rect()
     imagerect = image.get_rect().move(95,25)
     screen.blit(image,imagerect)
+def screen_update_message(message):
+    screen_update_message_helper(message)
     pygame.display.flip()
 def screen_update_upgrade_float_text(x,y):
     font = pygame.font.Font(None,15)
@@ -1970,9 +2213,11 @@ def screen_update_upgrade_float_text(x,y):
         image = font.render(upgrade_types[upgrade].name,1,(255,255,255))
         imagerect = image.get_rect().move(95,50)
         screen.blit(image,imagerect)
-        image = font.render(upgrade_types[upgrade].cost(upgrade),1,(255,255,255))
-        imagerect = image.get_rect().move(95,65)
-        screen.blit(image,imagerect)
+        costs,colors = upgrade_types[upgrade].cost(upgrade)
+        for i in range(len(costs)):
+            image = font.render(costs[i],1,colors[i])
+            imagerect = image.get_rect().move(95+(80*i),65)
+            screen.blit(image,imagerect)
         image = font.render(upgrade_types[upgrade].description,1,(255,255,255))
         imagerect = image.get_rect().move(95,80)
         screen.blit(image,imagerect)
@@ -1992,12 +2237,35 @@ def screen_update_upgrade_float_text(x,y):
             image = font.render(owner_text,1,(255,255,255))
             imagerect = image.get_rect().move(95,125)
             screen.blit(image,imagerect)
+def screen_update_resource_screen(message,originals):
+    electricity,water,information,metal,rare_metal=originals
+    screen_update_message_helper(message)
+    player = game_state.players[player_identity]
+    font = pygame.font.Font(None,15)
+    image = font.render(str(electricity),1,(255,255,0))
+    imagerect = image.get_rect().move(x_res-130,y_res-100)
+    screen.blit(image,imagerect)
+    image = font.render(str(water),1,(0,255,255))
+    imagerect = image.get_rect().move(x_res-110,y_res-100)
+    screen.blit(image,imagerect)
+    image = font.render(str(information),1,(0,255,0))
+    imagerect = image.get_rect().move(x_res-90,y_res-100)
+    screen.blit(image,imagerect)
+    image = font.render(str(metal),1,(128,128,128))
+    imagerect = image.get_rect().move(x_res-70,y_res-100)
+    screen.blit(image,imagerect)
+    image = font.render(str(rare_metal),1,(255,128,0))
+    imagerect = image.get_rect().move(x_res-50,y_res-100)
+    screen.blit(image,imagerect)
+    for i in range(5):
+        pygame.draw.polygon(screen,(255,255,255),[(x_res-133+(20*i),y_res-80),(x_res-117+(20*i),y_res-80),(x_res-125+(20*i),y_res-70)])
+    pygame.display.flip()
 def upgrade_hover(x,y):
-    if x>=490 and y>=100 and y<=579:
+    if x>=(x_res-150) and y>=100 and y<=579:
         return ((y-100)/15,None)
     else:
-        x2=x/30
-        y2=y/30
+        x2=x/45
+        y2=y/45
         tile = find_tile_by_position((x2*16)+y2)
         if tile == None:
             return (None,None)
@@ -2053,4 +2321,11 @@ if __name__ == "__main__":
         is_server = arguments["-s"]
     address = arguments["<address>"] or "127.0.0.1"
     port = arguments["<port>"] or "5000"
-    main(address, port)
+    x = arguments["<x>"] or 880
+    y = arguments["<y>"] or 720
+    x = int(x)
+    y = int(y)
+    fullscreen = arguments["-f"]
+    if fullscreen==False:
+        fullscreen = arguments["--fullscreen"]
+    main(address, port,x,y)

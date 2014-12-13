@@ -1,5 +1,7 @@
 ---
 debug changes:
-20 resources
+#20 resources
 #no lay tiles
-K_q quits
+#K_q quits
+
+---
