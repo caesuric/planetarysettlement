@@ -1771,16 +1771,16 @@ def initialize_game_state():
     player_b.total_workers = 2
     
     # DEV MODE ACTIVATED
-    game_state.players[0].water=20
-    game_state.players[1].water=20
-    game_state.players[0].electricity=20
-    game_state.players[1].electricity=20
-    game_state.players[0].information=20
-    game_state.players[1].information=20
-    game_state.players[0].metal=20
-    game_state.players[1].metal=20
-    game_state.players[0].rare_metal=20
-    game_state.players[1].rare_metal=20
+    # game_state.players[0].water=20
+    # game_state.players[1].water=20
+    # game_state.players[0].electricity=20
+    # game_state.players[1].electricity=20
+    # game_state.players[0].information=20
+    # game_state.players[1].information=20
+    # game_state.players[0].metal=20
+    # game_state.players[1].metal=20
+    # game_state.players[0].rare_metal=20
+    # game_state.players[1].rare_metal=20
 class TileType ():
     def __init__(self):
         self.facility_connection = [False,False,False,False]
