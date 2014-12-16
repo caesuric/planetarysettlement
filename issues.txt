@@ -5,3 +5,6 @@ debug changes:
 #K_q quits
 
 ---
+
+asks about upgrading twice when using the expanded upgrade space
+worker space causes a desync if used by p1 and it's the expanded worker space

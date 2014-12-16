@@ -9,7 +9,7 @@ Usage:
 Options:
     -h --help               Show this screen
 """
-import zmq, sys, random, pygame,math
+import zmq, sys, random, pygame,math,threading
 from docopt import docopt
 from ps_pb2 import GameState,Player,Tile
 from pygame.locals import *
@@ -37,7 +37,7 @@ def main(address, port,x,y):
         socket = context.socket(zmq.REP)
         socket.connect("tcp://{0}:{1}".format(address, port))
         game_state = GameState()
-        receive_game_state()
+        receive_game_state_initial()
         send_game_state()
         player_identity=1
     else:
@@ -47,7 +47,7 @@ def main(address, port,x,y):
         game_state = GameState()
         initialize_game_state()
         send_game_state()
-        receive_game_state()
+        receive_game_state_initial()
         player_identity=0
     main_loop()
 def main_loop():
@@ -113,10 +113,33 @@ def lay_tiles_input(tile_drawn):
     global x_res
     global y_res
     position_selected = False
+    column = 0
+    row = 0
     while position_selected==False:
         for event in pygame.event.get():
             if event.type == pygame.QUIT: sys.exit()
+            if event.type == pygame.KEYDOWN:
+                keystate = pygame.key.get_pressed()
+                if keystate[K_UP]==True:
+                    row-=45
+                    screen_update_mouse((column,row),tile_drawn,True)
+                if keystate[K_DOWN]==True:
+                    row+=45
+                    screen_update_mouse((column,row),tile_drawn,True)
+                if keystate[K_LEFT]==True:
+                    column-=45
+                    screen_update_mouse((column,row),tile_drawn,True)
+                if keystate[K_RIGHT]==True:
+                    column+=45
+                    screen_update_mouse((column,row),tile_drawn,True)
+                if keystate[K_SPACE]==True or keystate[K_RETURN]==True:
+                    column=column/45
+                    row=row/45
+                    if column>15:
+                        column=15
+                    position_selected=True
             if event.type == pygame.MOUSEMOTION:
+                column,row=event.pos
                 screen_update_mouse(event.pos,tile_drawn,True)
             if event.type == pygame.MOUSEBUTTONUP:
                 column,row = event.pos
@@ -141,9 +164,10 @@ def lay_tiles_input(tile_drawn):
             if event.type == pygame.KEYDOWN:
                 keystate = pygame.key.get_pressed()
                 if keystate[K_SPACE]==True:
-                    tile_drawn.tile_orientation+=1
-                    if tile_drawn.tile_orientation==4:
-                        tile_drawn.tile_orientation=0
+                    orientation+=1
+                    if orientation==4:
+                        orientation=0
+                    tile_drawn.tile_orientation = orientation
                     screen_update_mouse_rotate((column*45,row*45),tile_drawn)
                 if keystate[K_RETURN]==True:
                     orientation_selected = True
@@ -445,9 +469,31 @@ def place_worker_input():
     global x_res
     global y_res
     position_selected=False
+    column=0
+    row=0
     while position_selected==False:
         for event in pygame.event.get():
             if event.type == pygame.QUIT: sys.exit()
+            if event.type == pygame.KEYDOWN:
+                keystate = pygame.key.get_pressed()
+                if keystate[K_UP]==True:
+                    row-=45
+                    screen_update_mouse_worker((column,row))
+                if keystate[K_DOWN]==True:
+                    row+=45
+                    screen_update_mouse_worker((column,row))
+                if keystate[K_LEFT]==True:
+                    column-=45
+                    screen_update_mouse_worker((column,row))
+                if keystate[K_RIGHT]==True:
+                    column+=45
+                    screen_update_mouse_worker((column,row))
+                if keystate[K_SPACE]==True or keystate[K_RETURN]==True:
+                    column=column/45
+                    row=row/45
+                    if column>15:
+                        column=15
+                    position_selected=True
             if event.type == pygame.MOUSEMOTION:
                 screen_update_mouse_worker(event.pos)
             if event.type == pygame.MOUSEBUTTONUP:
@@ -1908,7 +1954,7 @@ class UpgradeType():
             if player.information<self.information:
                 colors.append((255,0,0))
             else:
-                colors.append((0,255,0))
+                colors.append((0,224,0))
         if self.metal>0:
             costs.append("Metal: "+str(self.metal))
             if player.metal<self.metal:
@@ -1953,7 +1999,7 @@ def screen_update_helper():
         elif i.city_online_status==0:
             city_color=(128,128,128)
         elif i.city_online_status==1:
-            city_color=(0,128,0)
+            city_color=(0,224,0)
         elif i.city_online_status==2:
             city_color=(0,64,255)
         if rotated.facility_connection[1]==True:
@@ -2003,7 +2049,7 @@ def screen_update_helper():
             screen.blit(image,imagerect)
         if i.information != None and i.information>0:
             font = pygame.font.Font(None,15)
-            image = font.render(str(i.information),1,(0,255,0))
+            image = font.render(str(i.information),1,(0,224,0))
             imagerect = image.get_rect()
             imagerect = image.get_rect().move(x+33,y+2)
             screen.blit(image,imagerect)
@@ -2048,7 +2094,7 @@ def screen_update_helper():
         elif i.tile_type==15 or i.tile_type==23:
             pygame.draw.circle(screen,(0,255,255),(x+36,y+36),9)
         elif i.tile_type==16 or i.tile_type==24:
-            pygame.draw.circle(screen,(0,255,0),(x+36,y+36),9)
+            pygame.draw.circle(screen,(0,224,0),(x+36,y+36),9)
         elif i.tile_type==17 or i.tile_type==25:
             pygame.draw.circle(screen,(128,128,128),(x+36,y+36),9)
         elif i.tile_type==18 or i.tile_type==26:
@@ -2077,7 +2123,7 @@ def screen_update_helper():
     image = font.render(str(player.water),1,(0,255,255))
     imagerect = image.get_rect().move(x_res-110,y_res-60)
     screen.blit(image,imagerect)
-    image = font.render(str(player.information),1,(0,255,0))
+    image = font.render(str(player.information),1,(0,224,0))
     imagerect = image.get_rect().move(x_res-90,y_res-60)
     screen.blit(image,imagerect)
     image = font.render(str(player.metal),1,(128,128,128))
@@ -2101,7 +2147,7 @@ def screen_update_helper():
     image = font.render(str(opponent.water),1,(0,255,255))
     imagerect = image.get_rect().move(x_res-110,50)
     screen.blit(image,imagerect)
-    image = font.render(str(opponent.information),1,(0,255,0))
+    image = font.render(str(opponent.information),1,(0,224,0))
     imagerect = image.get_rect().move(x_res-90,50)
     screen.blit(image,imagerect)
     image = font.render(str(opponent.metal),1,(128,128,128))
@@ -2134,7 +2180,7 @@ def screen_update_upgrades():
             elif i>=8 and i<=15:
                 color=(255,255,0)
             elif i>=16 and i<=23:
-                color=(0,255,0)
+                color=(0,224,0)
             elif i>=24 and i<=31:
                 color=(128,128,128)
             if upgrade_costs_not_met(player_identity,i)==False:
@@ -2171,7 +2217,7 @@ def screen_update_mouse((x2,y2),tile,is_active_player):
     elif tile.tile_type==15 or tile.tile_type==23:
         pygame.draw.circle(screen,(0,255,255),(x2+22,y2+22),9)
     elif tile.tile_type==16 or tile.tile_type==24:
-        pygame.draw.circle(screen,(0,255,0),(x2+22,y2+22),9)
+        pygame.draw.circle(screen,(0,224,0),(x2+22,y2+22),9)
     elif tile.tile_type==17 or tile.tile_type==25:
         pygame.draw.circle(screen,(128,128,128),(x2+22,y2+22),9)
     elif tile.tile_type==18 or tile.tile_type==26:
@@ -2220,7 +2266,7 @@ def screen_update_mouse_rotate((x2,y2),tile):
     elif tile.tile_type==15 or tile.tile_type==23:
         pygame.draw.circle(screen,(0,255,255),(x2+22,y2+22),9)
     elif tile.tile_type==16 or tile.tile_type==24:
-        pygame.draw.circle(screen,(0,255,0),(x2+22,y2+22),9)
+        pygame.draw.circle(screen,(0,224,0),(x2+22,y2+22),9)
     elif tile.tile_type==17 or tile.tile_type==25:
         pygame.draw.circle(screen,(128,128,128),(x2+22,y2+22),9)
     elif tile.tile_type==18 or tile.tile_type==26:
@@ -2248,7 +2294,7 @@ def screen_update_mouse_worker((x,y)):
     screen_update_message_helper("Placing worker {0}/{1}".format(game_state.players[player_identity].total_workers-game_state.players[player_identity].workers_remaining,game_state.players[player_identity].total_workers))
     pygame.draw.circle(screen,(255,255,255),(x,y),15)
     if find_tile_by_position(((x/45)*16)+(y/45))!=None:
-        pygame.draw.rect(screen,(0,255,0),pygame.Rect((x/45)*45,(y/45)*45,45,45),2)
+        pygame.draw.rect(screen,(0,224,0),pygame.Rect((x/45)*45,(y/45)*45,45,45),2)
     pygame.display.flip()
 def screen_update_message_helper(message):
     screen_update_helper()
@@ -2302,7 +2348,7 @@ def screen_update_resource_screen(message,originals):
     image = font.render(str(water),1,(0,255,255))
     imagerect = image.get_rect().move(x_res-110,y_res-100)
     screen.blit(image,imagerect)
-    image = font.render(str(information),1,(0,255,0))
+    image = font.render(str(information),1,(0,224,0))
     imagerect = image.get_rect().move(x_res-90,y_res-100)
     screen.blit(image,imagerect)
     image = font.render(str(metal),1,(128,128,128))
@@ -2353,6 +2399,22 @@ def receive_game_state():
     global last_sent
     global game_state
     global last_received_id
+    screen_updater = ScreenUpdateThread()
+    screen_updater.start()
+    msg = socket.recv()
+    screen_updater.stop()
+    temp_game_state = GameState()
+    temp_game_state.ParseFromString(msg)
+    if temp_game_state.id>last_received_id:
+        game_state.ParseFromString(msg)
+        print ("RECEIVING GAME STATE {0}".format(game_state.id))
+    else:
+        print ("RECEIVED GAME STATE {0}, EXPECTED {1} OR HIGHER".format(temp_game_state.id,last_received_id))
+    last_sent=False
+def receive_game_state_initial():
+    global last_sent
+    global game_state
+    global last_received_id
     msg = socket.recv()
     temp_game_state = GameState()
     temp_game_state.ParseFromString(msg)
@@ -2364,9 +2426,32 @@ def receive_game_state():
     last_sent=False
 def receive_game_state_dump():
     global last_sent
+    screen_updater = ScreenUpdateThread()
+    screen_updater.start()
     msg = socket.recv()
+    screen_updater.stop()
     print ("RECEIVING GAME STATE")
     last_sent=False
+class ScreenUpdateThread(threading.Thread):
+    def __init__(self):
+        super(ScreenUpdateThread,self).__init__()
+        self.running=True
+    def run(self):
+        while self.running==True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT: sys.exit()
+                if event.type == pygame.MOUSEMOTION:
+                    screen_update()
+                if event.type == pygame.VIDEORESIZE:
+                    x_res = event.w
+                    y_res = event.h
+                    if x_res<880:
+                        x_res=880
+                    if y_res<720:
+                        y_res=720
+                    pygame.display.set_mode((x_res,y_res),RESIZABLE)
+    def stop(self):
+        self.running=False
 if __name__ == "__main__":
     from docopt import docopt
     arguments = docopt(__doc__, version='Terraform v0.1')
