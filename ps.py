@@ -9,7 +9,7 @@ Usage:
 Options:
     -h --help               Show this screen
 """
-import zmq, sys, random, pygame,math,threading
+import zmq, sys, random, pygame,math
 from docopt import docopt
 from ps_pb2 import GameState,Player,Tile
 from pygame.locals import *
@@ -37,7 +37,7 @@ def main(address, port,x,y):
         socket = context.socket(zmq.REP)
         socket.connect("tcp://{0}:{1}".format(address, port))
         game_state = GameState()
-        receive_game_state_initial()
+        receive_game_state()
         send_game_state()
         player_identity=1
     else:
@@ -47,7 +47,7 @@ def main(address, port,x,y):
         game_state = GameState()
         initialize_game_state()
         send_game_state()
-        receive_game_state_initial()
+        receive_game_state()
         player_identity=0
     main_loop()
 def main_loop():
@@ -2399,22 +2399,6 @@ def receive_game_state():
     global last_sent
     global game_state
     global last_received_id
-    screen_updater = ScreenUpdateThread()
-    screen_updater.start()
-    msg = socket.recv()
-    screen_updater.stop()
-    temp_game_state = GameState()
-    temp_game_state.ParseFromString(msg)
-    if temp_game_state.id>last_received_id:
-        game_state.ParseFromString(msg)
-        print ("RECEIVING GAME STATE {0}".format(game_state.id))
-    else:
-        print ("RECEIVED GAME STATE {0}, EXPECTED {1} OR HIGHER".format(temp_game_state.id,last_received_id))
-    last_sent=False
-def receive_game_state_initial():
-    global last_sent
-    global game_state
-    global last_received_id
     msg = socket.recv()
     temp_game_state = GameState()
     temp_game_state.ParseFromString(msg)
@@ -2426,32 +2410,9 @@ def receive_game_state_initial():
     last_sent=False
 def receive_game_state_dump():
     global last_sent
-    screen_updater = ScreenUpdateThread()
-    screen_updater.start()
     msg = socket.recv()
-    screen_updater.stop()
     print ("RECEIVING GAME STATE")
     last_sent=False
-class ScreenUpdateThread(threading.Thread):
-    def __init__(self):
-        super(ScreenUpdateThread,self).__init__()
-        self.running=True
-    def run(self):
-        while self.running==True:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT: sys.exit()
-                if event.type == pygame.MOUSEMOTION:
-                    screen_update()
-                if event.type == pygame.VIDEORESIZE:
-                    x_res = event.w
-                    y_res = event.h
-                    if x_res<880:
-                        x_res=880
-                    if y_res<720:
-                        y_res=720
-                    pygame.display.set_mode((x_res,y_res),RESIZABLE)
-    def stop(self):
-        self.running=False
 if __name__ == "__main__":
     from docopt import docopt
     arguments = docopt(__doc__, version='Terraform v0.1')
