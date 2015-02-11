@@ -3,7 +3,7 @@
 Runs a planetary settlement boardgame.
 
 Usage:
-    ps [<address>] [<port>] [<x>] [<y>] [--server | -s] [--fullscreen | -f]
+    ps [<address>] [<port>] [<x>] [<y>] [--server | -s] [--fullscreen | -f] 
     ps (-h | --help)
 
 Options:
@@ -13,7 +13,7 @@ import zmq, sys, random, pygame,math
 from docopt import docopt
 from ps_pb2 import GameState,Player,Tile
 from pygame.locals import *
-pygame.init()
+pygame.init() 
 	
 def main(address, port,x,y):
     global player_identity
@@ -51,8 +51,8 @@ def main(address, port,x,y):
         player_identity=0
     main_loop()
 def main_loop():
-    while True:
-        take_turn()
+    while True: 
+        take_turn() #I suppose true turns off once a game is over 
 def take_turn():    
     is_first = game_state.players[player_identity].is_first_player
     if len(game_state.stack_tiles._values)==0:
